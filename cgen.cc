@@ -402,10 +402,7 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
   code_ref(s);  s  << LABEL                                             // label
       << WORD << stringclasstag << endl                                 // tag
       << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + (len+4)/4) << endl // size
-      << WORD;
-
-
-      s << 0 << endl;   //TODO                                // dispatch table
+      << WORD; emit_disptable_ref(Str, s); s << endl;         // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
   emit_string_constant(s,str);                                // ascii string
   s << ALIGN;                                                 // align to word
@@ -421,10 +418,7 @@ void code_proto_string(ostream& s, int stringclasstag)
   emit_protobj_ref(Str, s); s << LABEL                             // label
       << WORD << stringclasstag << endl                                 // tag
       << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + 1) << endl // size
-      << WORD;
-
-
-      s << 0 << endl; //TODO                                   // dispatch table
+      << WORD; emit_disptable_ref(Str, s); s << endl;         // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
   emit_string_constant(s,"");                                // ascii string
   s << ALIGN;                                                 // align to word
@@ -467,9 +461,7 @@ void IntEntry::code_def(ostream &s, int intclasstag)
   code_ref(s);  s << LABEL                                // label
       << WORD << intclasstag << endl                      // class tag
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD;
-
-      s << 0 << endl;       //TODO                        // dispatch table
+      << WORD; emit_disptable_ref(Int, s); s << endl;         // dispatch table
       s << WORD << str << endl;                           // integer value
 }
 
@@ -481,9 +473,7 @@ void code_proto_int(ostream &s, int intclasstag)
   emit_protobj_ref(Int, s); s << LABEL                             // label
       << WORD << intclasstag << endl                      // class tag
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD;
-
-      s << 0 << endl;       //TODO                        // dispatch table
+      << WORD; emit_disptable_ref(Int, s); s << endl;         // dispatch table
       s << WORD << "0" << endl;                           // integer value
 }
 
@@ -528,9 +518,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
   code_ref(s);  s << LABEL                                  // label
       << WORD << boolclasstag << endl                       // class tag
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
-      << WORD;
-
-      s << 0 << endl;          //TODO                       // dispatch table
+      << WORD; emit_disptable_ref(Bool, s); s << endl;       // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
 }
 
@@ -540,6 +528,33 @@ void code_init_bool(ostream &s, int intclasstag)
   emit_return(s);
 }
 
+// TODO: this is temporary
+void code_proto_empty(ostream &s, Symbol name, int classtag)
+{
+  // Add -1 eye catcher
+  s << WORD << "-1" << endl;
+
+  emit_protobj_ref(name, s); s << LABEL                             // label
+      << WORD << classtag << endl                      // class tag
+      << WORD << (DEFAULT_OBJFIELDS + 0) << endl  // object size
+      << WORD; emit_disptable_ref(name, s); s << endl;       // dispatch table
+}
+
+// TODO: this is temporary
+void code_init_empty(ostream &s, Symbol name, int classtag)
+{
+  emit_init_ref(name, s); s << LABEL;
+  emit_return(s);
+}
+
+void code_class_name_table(ostream &s, std::vector<Symbol> names)
+{
+  s << CLASSNAMETAB << LABEL;
+  for (size_t i = 0; i < names.size(); i++) {
+    StringEntryP string_sym = stringtable.lookup_string(names[i]->get_string());
+    s << WORD; string_sym->code_ref(s); s << endl;
+  }
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -666,10 +681,6 @@ void CgenClassTable::code_constants()
 
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   stringclasstag = 0 /* Change to your String class tag here */;
-   intclasstag =    1 /* Change to your Int class tag here */;
-   boolclasstag =   2 /* Change to your Bool class tag here */;
-
    enterscope();
    if (cgen_debug) cout << "Building CgenClassTable" << endl;
    install_basic_classes();
@@ -682,6 +693,17 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
 void CgenClassTable::install_basic_classes()
 {
+  objectclasstag = 0;
+  class_syms.push_back(Object);
+  ioclasstag = 1;
+  class_syms.push_back(IO);
+  stringclasstag = 2;
+  class_syms.push_back(Str);
+  intclasstag = 3;
+  class_syms.push_back(Int);
+  boolclasstag = 4;
+  class_syms.push_back(Bool);
+  customclasstag_start = 5;
 
 // The tree package uses these globals to annotate the classes built below.
   //curr_lineno  = 0;
@@ -824,8 +846,10 @@ void CgenClassTable::install_class(CgenNodeP nd)
 
 void CgenClassTable::install_classes(Classes cs)
 {
-  for(int i = cs->first(); cs->more(i); i = cs->next(i))
+  for(int i = cs->first(); cs->more(i); i = cs->next(i)) {
     install_class(new CgenNode(cs->nth(i),NotBasic,this));
+    class_syms.push_back(cs->nth(i)->get_name());
+  }
 }
 
 //
@@ -875,8 +899,24 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
+  code_proto_empty(str, Object, objectclasstag);
+  code_proto_empty(str, IO, ioclasstag);
   code_proto_string(str, stringclasstag);
   code_proto_int(str, intclasstag);
+
+  for(size_t i = customclasstag_start; i < class_syms.size(); i++) {
+    code_proto_empty(str, class_syms[i], i);
+  }
+
+  code_class_name_table(str, class_syms);
+
+  // make dummy dispatch tables
+  // TODO: make this real
+  for (size_t i = 0; i < class_syms.size(); i++) {
+    emit_disptable_ref(class_syms[i], str); str << LABEL;
+    str << endl;
+  }
+
 
 //                 TODO: Add your code to emit
 //                   - prototype objects
@@ -887,9 +927,32 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
 
+
+  code_init_empty(str, Object, objectclasstag);
+  code_init_empty(str, IO, ioclasstag);
   code_init_int(str, intclasstag);
   code_init_string(str, stringclasstag);
   code_init_bool(str, boolclasstag);
+
+  for(size_t i = customclasstag_start; i < class_syms.size(); i++) {
+    code_init_empty(str, class_syms[i], i );
+  }
+
+// HACK: copy/paste from reference compiler output for now
+  str <<
+  "Main.main:\n"
+"        addiu   $sp $sp -12\n"
+"        sw      $fp 12($sp)\n"
+"        sw      $s0 8($sp)\n"
+"        sw      $ra 4($sp)\n"
+"        addiu   $fp $sp 4\n"
+"        move    $s0 $a0\n"
+"        la      $a0 int_const0\n"
+"        lw      $fp 12($sp)\n"
+"        lw      $s0 8($sp)\n"
+"        lw      $ra 4($sp)\n"
+"        addiu   $sp $sp 12\n"
+"        jr      $ra\n";
 
 //                 TODO: Add your code to emit
 //                   - object initializer

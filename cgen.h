@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <vector>
 #include "emit.h"
 #include "cool-tree.h"
 #include "symtab.h"
@@ -17,11 +18,14 @@ typedef CgenNode *CgenNodeP;
 class CgenClassTable : public SymbolTable<Symbol,CgenNode> {
 private:
    List<CgenNode> *nds;
+   std::vector<Symbol> class_syms;
    ostream& str;
+   int objectclasstag;
+   int ioclasstag;
    int stringclasstag;
    int intclasstag;
    int boolclasstag;
-
+   int customclasstag_start;
 
 // The following methods emit code for
 // constants and global declarations.
@@ -50,7 +54,7 @@ public:
 
 
 class CgenNode : public class__class {
-private: 
+private:
    CgenNodeP parentnd;                        // Parent of class
    List<CgenNode> *children;                  // Children of class
    Basicness basic_status;                    // `Basic' if class is basic
@@ -68,9 +72,9 @@ public:
    int basic() { return (basic_status == Basic); }
 };
 
-class BoolConst 
+class BoolConst
 {
- private: 
+ private:
   int val;
  public:
   BoolConst(int);
