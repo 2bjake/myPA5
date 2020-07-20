@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <vector>
+#include <map>
 #include "emit.h"
 #include "cool-tree.h"
 #include "symtab.h"
@@ -19,6 +20,7 @@ class CgenClassTable : public SymbolTable<Symbol,CgenNode> {
 private:
    List<CgenNode> *nds;
    std::vector<Symbol> class_syms;
+   std::map<Symbol, std::vector<std::pair<Symbol, Symbol> > > dispatch_tables;
    ostream& str;
    int objectclasstag;
    int ioclasstag;
@@ -35,6 +37,8 @@ private:
    void code_bools(int);
    void code_select_gc();
    void code_constants();
+   void code_dispatch_table(Symbol clazz, std::vector<std::pair<Symbol, Symbol> > methods);
+   void code_dispatch_tables();
 
 // The following creates an inheritance graph from
 // a list of classes.  The graph is implemented as
@@ -46,6 +50,7 @@ private:
    void install_classes(Classes cs);
    void build_inheritance_tree();
    void set_relations(CgenNodeP nd);
+   void build_dispatch_tables(CgenNodeP node, std::vector<std::pair<Symbol, Symbol> > dispTbl, std::map<Symbol, int> method_pos);
 public:
    CgenClassTable(Classes, ostream& str);
    void code();

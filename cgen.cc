@@ -687,6 +687,10 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
    install_classes(classes);
    build_inheritance_tree();
 
+   std::vector<std::pair<Symbol, Symbol> > empty_table;
+   std::map<Symbol, int> empty_pos;
+   build_dispatch_tables(root(), empty_table, empty_pos);
+
    code();
    exitscope();
 }
@@ -857,8 +861,9 @@ void CgenClassTable::install_classes(Classes cs)
 //
 void CgenClassTable::build_inheritance_tree()
 {
-  for(List<CgenNode> *l = nds; l; l = l->tl())
+  for(List<CgenNode> *l = nds; l; l = l->tl()) {
       set_relations(l->hd());
+  }
 }
 
 //
@@ -872,6 +877,43 @@ void CgenClassTable::set_relations(CgenNodeP nd)
   CgenNode *parent_node = probe(nd->get_parent());
   nd->set_parentnd(parent_node);
   parent_node->add_child(nd);
+}
+
+void CgenClassTable::code_dispatch_table(Symbol clazz, std::vector<std::pair<Symbol, Symbol> > methods) {
+    emit_disptable_ref(clazz, str); str << LABEL;
+    for (size_t i = 0; i < methods.size(); i++) {
+      str << WORD; emit_method_ref(methods[i].first, methods[i].second, str);
+      str << endl;
+    }
+}
+
+void CgenClassTable::code_dispatch_tables() {
+  std::map<Symbol, std::vector<std::pair<Symbol, Symbol> > >::iterator it = dispatch_tables.begin();
+  for (it; it != dispatch_tables.end(); ++it) {
+    code_dispatch_table(it->first, it->second);
+  }
+
+}
+
+void CgenClassTable::build_dispatch_tables(CgenNodeP node, std::vector<std::pair<Symbol, Symbol> > tbl, std::map<Symbol, int> method_pos) {
+  Features features = node->features;
+  for (int i = features->first(); features->more(i); i = features->next(i)) {
+    if (method_class* method = dynamic_cast<method_class*>(features->nth(i))) {
+      std::pair<Symbol, Symbol> entry = std::make_pair(node->name, method->name);
+      std::map<Symbol, int>::iterator it = method_pos.find(method->name);
+      if (it != method_pos.end()) {
+        tbl[it->second] = entry;
+      } else { // not an override, add to table at next position
+        method_pos[method->name] = tbl.size();
+        tbl.push_back(entry);
+      }
+    }
+  }
+  dispatch_tables[node->name] = tbl;
+    List<CgenNode> *children = node->get_children();
+    for (children; children != NULL; children = children->tl()) {
+      build_dispatch_tables(children->hd(), tbl, method_pos);
+    }
 }
 
 void CgenNode::add_child(CgenNodeP n)
@@ -910,12 +952,7 @@ void CgenClassTable::code()
 
   code_class_name_table(str, class_syms);
 
-  // make dummy dispatch tables
-  // TODO: make this real
-  for (size_t i = 0; i < class_syms.size(); i++) {
-    emit_disptable_ref(class_syms[i], str); str << LABEL;
-    str << endl;
-  }
+  code_dispatch_tables();
 
 
 //                 TODO: Add your code to emit
