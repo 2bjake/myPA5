@@ -390,7 +390,6 @@ void StringEntry::code_ref(ostream& s)
 
 //
 // Emit code for a constant String.
-// TODO: You should fill in the code naming the dispatch table.
 //
 
 void StringEntry::code_def(ostream& s, int stringclasstag)
@@ -406,12 +405,35 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
       << WORD;
 
 
- /***** Add dispatch information for class String ******/
-
-      s << 0 << endl;                                         // dispatch table
+      s << 0 << endl;   //TODO                                // dispatch table
       s << WORD;  lensym->code_ref(s);  s << endl;            // string length
   emit_string_constant(s,str);                                // ascii string
   s << ALIGN;                                                 // align to word
+}
+
+void code_proto_string(ostream& s, int stringclasstag)
+{
+  IntEntryP lensym = inttable.add_int(0);
+
+  // Add -1 eye catcher
+  s << WORD << "-1" << endl;
+
+  emit_protobj_ref(Str, s); s << LABEL                             // label
+      << WORD << stringclasstag << endl                                 // tag
+      << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + 1) << endl // size
+      << WORD;
+
+
+      s << 0 << endl; //TODO                                   // dispatch table
+      s << WORD;  lensym->code_ref(s);  s << endl;            // string length
+  emit_string_constant(s,"");                                // ascii string
+  s << ALIGN;                                                 // align to word
+}
+
+void code_init_string(ostream &s, int stringclasstag)
+{
+  emit_init_ref(Str, s); s << LABEL;
+  emit_return(s);
 }
 
 //
@@ -435,7 +457,6 @@ void IntEntry::code_ref(ostream &s)
 
 //
 // Emit code for a constant Integer.
-// TODO: You should fill in the code naming the dispatch table.
 //
 
 void IntEntry::code_def(ostream &s, int intclasstag)
@@ -448,10 +469,28 @@ void IntEntry::code_def(ostream &s, int intclasstag)
       << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
       << WORD;
 
- /***** Add dispatch information for class Int ******/
-
-      s << 0 << endl;                                     // dispatch table
+      s << 0 << endl;       //TODO                        // dispatch table
       s << WORD << str << endl;                           // integer value
+}
+
+void code_proto_int(ostream &s, int intclasstag)
+{
+  // Add -1 eye catcher
+  s << WORD << "-1" << endl;
+
+  emit_protobj_ref(Int, s); s << LABEL                             // label
+      << WORD << intclasstag << endl                      // class tag
+      << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
+      << WORD;
+
+      s << 0 << endl;       //TODO                        // dispatch table
+      s << WORD << "0" << endl;                           // integer value
+}
+
+void code_init_int(ostream &s, int intclasstag)
+{
+  emit_init_ref(Int, s); s << LABEL;
+  emit_return(s);
 }
 
 
@@ -479,7 +518,6 @@ void BoolConst::code_ref(ostream& s) const
 
 //
 // Emit code for a constant Bool.
-// TODO: You should fill in the code naming the dispatch table.
 //
 
 void BoolConst::code_def(ostream& s, int boolclasstag)
@@ -492,10 +530,14 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
       << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
       << WORD;
 
- /***** Add dispatch information for class Bool ******/
-
-      s << 0 << endl;                                       // dispatch table
+      s << 0 << endl;          //TODO                       // dispatch table
       s << WORD << val << endl;                             // value (0 or 1)
+}
+
+void code_init_bool(ostream &s, int intclasstag)
+{
+  emit_init_ref(Bool, s); s << LABEL;
+  emit_return(s);
 }
 
 
@@ -833,6 +875,9 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
+  code_proto_string(str, stringclasstag);
+  code_proto_int(str, intclasstag);
+
 //                 TODO: Add your code to emit
 //                   - prototype objects
 //                   - class_nameTab
@@ -841,6 +886,10 @@ void CgenClassTable::code()
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
+
+  code_init_int(str, intclasstag);
+  code_init_string(str, stringclasstag);
+  code_init_bool(str, boolclasstag);
 
 //                 TODO: Add your code to emit
 //                   - object initializer
