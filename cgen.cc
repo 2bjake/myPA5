@@ -399,13 +399,13 @@ void StringEntry::code_def(ostream& s, int stringclasstag)
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
-  code_ref(s);  s  << LABEL                                             // label
-      << WORD << stringclasstag << endl                                 // tag
-      << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + (len+4)/4) << endl // size
-      << WORD; emit_disptable_ref(Str, s); s << endl;         // dispatch table
-      s << WORD;  lensym->code_ref(s);  s << endl;            // string length
-  emit_string_constant(s,str);                                // ascii string
-  s << ALIGN;                                                 // align to word
+  code_ref(s); s << LABEL
+      << WORD << stringclasstag << endl
+      << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + (len+4)/4) << endl // object size
+      << WORD; emit_disptable_ref(Str, s); s << endl
+      << WORD;  lensym->code_ref(s);  s << endl; // string length
+      emit_string_constant(s,str); // ascii string
+      s << ALIGN;
 }
 
 void code_proto_string(ostream& s, int stringclasstag)
@@ -415,13 +415,13 @@ void code_proto_string(ostream& s, int stringclasstag)
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
-  emit_protobj_ref(Str, s); s << LABEL                             // label
-      << WORD << stringclasstag << endl                                 // tag
-      << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + 1) << endl // size
-      << WORD; emit_disptable_ref(Str, s); s << endl;         // dispatch table
-      s << WORD;  lensym->code_ref(s);  s << endl;            // string length
-  emit_string_constant(s,"");                                // ascii string
-  s << ALIGN;                                                 // align to word
+  emit_protobj_ref(Str, s); s << LABEL
+      << WORD << stringclasstag << endl
+      << WORD << (DEFAULT_OBJFIELDS + STRING_SLOTS + 1) << endl // object size
+      << WORD; emit_disptable_ref(Str, s); s << endl
+      << WORD;  lensym->code_ref(s);  s << endl; // string length
+      emit_string_constant(s,""); // ascii string
+      s << ALIGN;
 }
 
 void code_init_string(ostream &s, int stringclasstag)
@@ -458,11 +458,11 @@ void IntEntry::code_def(ostream &s, int intclasstag)
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
-  code_ref(s);  s << LABEL                                // label
-      << WORD << intclasstag << endl                      // class tag
-      << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD; emit_disptable_ref(Int, s); s << endl;         // dispatch table
-      s << WORD << str << endl;                           // integer value
+  code_ref(s);  s << LABEL
+      << WORD << intclasstag << endl
+      << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl // object size
+      << WORD; emit_disptable_ref(Int, s); s << endl
+      << WORD << str << endl; // integer value
 }
 
 void code_proto_int(ostream &s, int intclasstag)
@@ -470,11 +470,11 @@ void code_proto_int(ostream &s, int intclasstag)
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
-  emit_protobj_ref(Int, s); s << LABEL                             // label
-      << WORD << intclasstag << endl                      // class tag
-      << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl  // object size
-      << WORD; emit_disptable_ref(Int, s); s << endl;         // dispatch table
-      s << WORD << "0" << endl;                           // integer value
+  emit_protobj_ref(Int, s); s << LABEL
+      << WORD << intclasstag << endl
+      << WORD << (DEFAULT_OBJFIELDS + INT_SLOTS) << endl // object size
+      << WORD; emit_disptable_ref(Int, s); s << endl
+      << WORD << "0" << endl; // integer value
 }
 
 void code_init_int(ostream &s, int intclasstag)
@@ -515,11 +515,11 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
-  code_ref(s);  s << LABEL                                  // label
-      << WORD << boolclasstag << endl                       // class tag
-      << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl   // object size
-      << WORD; emit_disptable_ref(Bool, s); s << endl;       // dispatch table
-      s << WORD << val << endl;                             // value (0 or 1)
+  code_ref(s);  s << LABEL
+      << WORD << boolclasstag << endl
+      << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl // object size
+      << WORD; emit_disptable_ref(Bool, s); s << endl
+      << WORD << val << endl; // value (0 or 1)
 }
 
 void code_init_bool(ostream &s, int intclasstag)
@@ -534,10 +534,10 @@ void code_proto_empty(ostream &s, Symbol name, int classtag)
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
-  emit_protobj_ref(name, s); s << LABEL                             // label
-      << WORD << classtag << endl                      // class tag
-      << WORD << (DEFAULT_OBJFIELDS + 0) << endl  // object size
-      << WORD; emit_disptable_ref(name, s); s << endl;       // dispatch table
+  emit_protobj_ref(name, s); s << LABEL
+      << WORD << classtag << endl
+      << WORD << (DEFAULT_OBJFIELDS + 0) << endl // object size
+      << WORD; emit_disptable_ref(name, s); s << endl;
 }
 
 // TODO: this is temporary
