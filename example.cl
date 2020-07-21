@@ -14,14 +14,15 @@ class Bar inherits Foo {
 *)
 
 class Foo {
-  x: Int;
-  y: Bool;
-  z: String;
+  x: Int <- 2;
+  y: Bool <- true;
+  z: String <- "hi";
 };
 
 class Bar inherits Foo {
   a: Int;
   b: Foo;
+  f(x: Int): Int { 0 };
 };
 
 

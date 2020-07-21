@@ -19,7 +19,7 @@ typedef CgenNode *CgenNodeP;
 class CgenClassTable : public SymbolTable<Symbol,CgenNode> {
 private:
    List<CgenNode> *nds;
-   std::vector<Symbol> class_syms;
+   std::vector<CgenNodeP> ordered_nodes;
    std::map<Symbol, std::vector<std::pair<Symbol, Symbol> > > dispatch_tables;
    ostream& str;
    std::map<Symbol, std::vector<Symbol> > class_attrs;

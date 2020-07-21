@@ -358,6 +358,26 @@ static void emit_gc_check(char *source, ostream &s)
   s << JAL << "_gc_check" << endl;
 }
 
+static void emit_method_entry(ostream &s) {
+  emit_addiu(SP, SP, -12, s); // make space on stack for frame
+  emit_store(FP, 3, SP, s); // save caller's frame pointer
+  emit_store(SELF, 2, SP, s); // save caller's self
+  emit_store(RA, 1, SP, s); // save return address
+  emit_addiu(FP, SP, 4, s); // update frame pointer
+  emit_move(SELF, ACC, s); // update self
+
+}
+
+// restores caller's registers, tears down frame, and returns
+// Note: this code does not set up the ACC return value
+static void emit_method_exit(int arg_count, ostream &s) {
+  emit_load(FP, 3, SP, s); // restore caller's frame pointer
+  emit_load(SELF, 2, SP, s); // restore caller's self
+  emit_load(RA, 1, SP, s); // retstore return address
+  emit_addiu(SP, SP, 12 + (arg_count * 4), s); // pop stack space for frame and args
+  emit_return(s); // return
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -424,12 +444,6 @@ void code_proto_string(ostream& s, int stringclasstag)
       s << ALIGN;
 }
 
-void code_init_string(ostream &s, int stringclasstag)
-{
-  emit_init_ref(Str, s); s << LABEL;
-  emit_return(s);
-}
-
 //
 // StrTable::code_string
 // Generate a string object definition for every string constant in the
@@ -477,12 +491,6 @@ void code_proto_int(ostream &s, int intclasstag)
       << WORD << "0" << endl; // integer value
 }
 
-void code_init_int(ostream &s, int intclasstag)
-{
-  emit_init_ref(Int, s); s << LABEL;
-  emit_return(s);
-}
-
 //
 // IntTable::code_string_table
 // Generate an Int object definition for every Int constant in the
@@ -521,12 +529,6 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
       << WORD << val << endl; // value (0 or 1)
 }
 
-void code_init_bool(ostream &s, int intclasstag)
-{
-  emit_init_ref(Bool, s); s << LABEL;
-  emit_return(s);
-}
-
 void code_default_attr(ostream &s, Symbol type) {
   s << WORD;
   if (type == Str) {
@@ -556,17 +558,25 @@ void code_proto_class(ostream &s, Symbol name, std::vector<Symbol> attrs, int cl
   }
 }
 
-void code_init_class(ostream &s, Symbol name, int classtag)
+void code_init_class(ostream &s, CgenNodeP node, int classtag)
 {
-  emit_init_ref(name, s); s << LABEL;
-  emit_return(s);
+  if (node->basic()) { return; }
+  emit_init_ref(node->get_name(), s); s << LABEL;
+  emit_method_entry(s);
+  if (!node->get_parentnd()->basic()) {
+    s << JAL << node->parent << CLASSINIT_SUFFIX << endl;
+  }
+  // TODO: init attrs
+  emit_move(ACC, SELF, s);
+  emit_method_exit(0, s);
 }
 
-void code_class_name_table(ostream &s, std::vector<Symbol> names)
+void code_class_name_table(ostream &s, std::vector<CgenNodeP> nodes)
 {
   s << CLASSNAMETAB << LABEL;
-  for (size_t i = 0; i < names.size(); i++) {
-    StringEntryP string_sym = stringtable.lookup_string(names[i]->get_string());
+  for (size_t i = 0; i < nodes.size(); i++) {
+    Symbol name = nodes[i]->get_name();
+    StringEntryP string_sym = stringtable.lookup_string(name->get_string());
     s << WORD; string_sym->code_ref(s); s << endl;
   }
 }
@@ -713,30 +723,20 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
 void CgenClassTable::install_basic_classes()
 {
-  objectclasstag = 0;
-  class_syms.push_back(Object);
-  ioclasstag = 1;
-  class_syms.push_back(IO);
-  stringclasstag = 2;
-  class_syms.push_back(Str);
-  intclasstag = 3;
-  class_syms.push_back(Int);
-  boolclasstag = 4;
-  class_syms.push_back(Bool);
-  customclasstag_start = 5;
+  int tag_num = 0;
 
-// The tree package uses these globals to annotate the classes built below.
+  // The tree package uses these globals to annotate the classes built below.
   //curr_lineno  = 0;
   Symbol filename = stringtable.add_string("<basic class>");
 
-//
-// A few special class names are installed in the lookup table but not
-// the class list.  Thus, these classes exist, but are not part of the
-// inheritance hierarchy.
-// No_class serves as the parent of Object and the other special classes.
-// SELF_TYPE is the self class; it cannot be redefined or inherited.
-// prim_slot is a class known to the code generator.
-//
+  //
+  // A few special class names are installed in the lookup table but not
+  // the class list.  Thus, these classes exist, but are not part of the
+  // inheritance hierarchy.
+  // No_class serves as the parent of Object and the other special classes.
+  // SELF_TYPE is the self class; it cannot be redefined or inherited.
+  // prim_slot is a class known to the code generator.
+  //
   addid(No_class,
 	new CgenNode(class_(No_class,No_class,nil_Features(),filename),
 			    Basic,this));
@@ -747,17 +747,16 @@ void CgenClassTable::install_basic_classes()
 	new CgenNode(class_(prim_slot,No_class,nil_Features(),filename),
 			    Basic,this));
 
-//
-// The Object class has no parent class. Its methods are
-//        cool_abort() : Object    aborts the program
-//        type_name() : Str        returns a string representation of class name
-//        copy() : SELF_TYPE       returns a copy of the object
-//
-// There is no need for method bodies in the basic classes---these
-// are already built in to the runtime system.
-//
-  install_class(
-   new CgenNode(
+  //
+  // The Object class has no parent class. Its methods are
+  //        cool_abort() : Object    aborts the program
+  //        type_name() : Str        returns a string representation of class name
+  //        copy() : SELF_TYPE       returns a copy of the object
+  //
+  // There is no need for method bodies in the basic classes---these
+  // are already built in to the runtime system.
+  //
+  CgenNodeP object_node = new CgenNode(
     class_(Object,
 	   No_class,
 	   append_Features(
@@ -766,17 +765,19 @@ void CgenClassTable::install_basic_classes()
            single_Features(method(type_name, nil_Formals(), Str, no_expr()))),
            single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
 	   filename),
-    Basic,this));
+    Basic,this);
+  install_class(object_node);
+  objectclasstag = tag_num++;
+  ordered_nodes.push_back(object_node);
 
-//
-// The IO class inherits from Object. Its methods are
-//        out_string(Str) : SELF_TYPE          writes a string to the output
-//        out_int(Int) : SELF_TYPE               "    an int    "  "     "
-//        in_string() : Str                    reads a string from the input
-//        in_int() : Int                         "   an int     "  "     "
-//
-   install_class(
-    new CgenNode(
+  //
+  // The IO class inherits from Object. Its methods are
+  //        out_string(Str) : SELF_TYPE          writes a string to the output
+  //        out_int(Int) : SELF_TYPE               "    an int    "  "     "
+  //        in_string() : Str                    reads a string from the input
+  //        in_int() : Int                         "   an int     "  "     "
+  //
+  CgenNodeP io_node = new CgenNode(
      class_(IO,
             Object,
             append_Features(
@@ -789,38 +790,44 @@ void CgenClassTable::install_basic_classes()
             single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
             single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
 	   filename),
-    Basic,this));
+    Basic,this);
+  install_class(io_node);
+  ioclasstag = tag_num++;
+  ordered_nodes.push_back(io_node);
 
 //
 // The Int class has no methods and only a single attribute, the
 // "val" for the integer.
 //
-   install_class(
-    new CgenNode(
+CgenNodeP int_node = new CgenNode(
      class_(Int,
 	    Object,
             single_Features(attr(val, prim_slot, no_expr())),
 	    filename),
-     Basic,this));
+     Basic,this);
+install_class(int_node);
+intclasstag = tag_num++;
+ordered_nodes.push_back(int_node);
 
-//
-// Bool also has only the "val" slot.
-//
-    install_class(
-     new CgenNode(
+  //
+  // Bool also has only the "val" slot.
+  //
+  CgenNodeP bool_node = new CgenNode(
       class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename),
-      Basic,this));
+      Basic,this);
+  install_class(bool_node);
+  boolclasstag = tag_num++;
+  ordered_nodes.push_back(bool_node);
 
-//
-// The class Str has a number of slots and operations:
-//       val                                  ???
-//       str_field                            the string itself
-//       length() : Int                       length of the string
-//       concat(arg: Str) : Str               string concatenation
-//       substr(arg: Int, arg2: Int): Str     substring
-//
-   install_class(
-    new CgenNode(
+  //
+  // The class Str has a number of slots and operations:
+  //       val                                  ???
+  //       str_field                            the string itself
+  //       length() : Int                       length of the string
+  //       concat(arg: Str) : Str               string concatenation
+  //       substr(arg: Int, arg2: Int): Str     substring
+  //
+  CgenNodeP string_node = new CgenNode(
       class_(Str,
 	     Object,
              append_Features(
@@ -840,8 +847,12 @@ void CgenClassTable::install_basic_classes()
 				   Str,
 				   no_expr()))),
 	     filename),
-        Basic,this));
+        Basic,this);
+  install_class(string_node);
+  stringclasstag = tag_num++;
+  ordered_nodes.push_back(string_node);
 
+  customclasstag_start = tag_num;
 }
 
 // CgenClassTable::install_class
@@ -867,8 +878,9 @@ void CgenClassTable::install_class(CgenNodeP nd)
 void CgenClassTable::install_classes(Classes cs)
 {
   for(int i = cs->first(); cs->more(i); i = cs->next(i)) {
-    install_class(new CgenNode(cs->nth(i),NotBasic,this));
-    class_syms.push_back(cs->nth(i)->get_name());
+    CgenNodeP node = new CgenNode(cs->nth(i),NotBasic,this);
+    install_class(node);
+    ordered_nodes.push_back(node);
   }
 }
 
@@ -965,26 +977,20 @@ void CgenClassTable::code()
   code_proto_string(str, stringclasstag);
   code_proto_int(str, intclasstag);
 
-  for(size_t i = customclasstag_start; i < class_syms.size(); i++) {
-    code_proto_class(str, class_syms[i], class_attrs[class_syms[i]], i);
+  for(size_t i = customclasstag_start; i < ordered_nodes.size(); i++) {
+    Symbol name = ordered_nodes[i]->get_name();
+    code_proto_class(str, name, class_attrs[name], i);
   }
 
-  code_class_name_table(str, class_syms);
+  code_class_name_table(str, ordered_nodes);
 
   code_dispatch_tables();
 
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
 
-
-  code_init_class(str, Object, objectclasstag);
-  code_init_class(str, IO, ioclasstag);
-  code_init_int(str, intclasstag);
-  code_init_string(str, stringclasstag);
-  code_init_bool(str, boolclasstag);
-
-  for(size_t i = customclasstag_start; i < class_syms.size(); i++) {
-    code_init_class(str, class_syms[i], i );
+  for(size_t i = 0; i < ordered_nodes.size(); i++) {
+    code_init_class(str, ordered_nodes[i], i);
   }
 
 // HACK: copy/paste from reference compiler output for now
