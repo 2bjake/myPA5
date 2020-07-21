@@ -483,7 +483,6 @@ void code_init_int(ostream &s, int intclasstag)
   emit_return(s);
 }
 
-
 //
 // IntTable::code_string_table
 // Generate an Int object definition for every Int constant in the
@@ -528,20 +527,36 @@ void code_init_bool(ostream &s, int intclasstag)
   emit_return(s);
 }
 
-// TODO: this is temporary
-void code_proto_empty(ostream &s, Symbol name, int classtag)
+void code_default_attr(ostream &s, Symbol type) {
+  s << WORD;
+  if (type == Str) {
+    stringtable.add_string("")->code_ref(s);
+  } else if (type == Int) {
+    inttable.add_int(0)->code_ref(s);
+  } else if (type == Bool) {
+    falsebool.code_ref(s);
+  } else {
+    s << 0;
+  }
+  s << endl;
+}
+
+void code_proto_class(ostream &s, Symbol name, std::vector<Symbol> attrs, int classtag)
 {
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
 
   emit_protobj_ref(name, s); s << LABEL
       << WORD << classtag << endl
-      << WORD << (DEFAULT_OBJFIELDS + 0) << endl // object size
+      << WORD << (DEFAULT_OBJFIELDS + attrs.size()) << endl // object size
       << WORD; emit_disptable_ref(name, s); s << endl;
+
+  for (size_t i = 0; i < attrs.size(); i++) {
+    code_default_attr(s, attrs[i]);
+  }
 }
 
-// TODO: this is temporary
-void code_init_empty(ostream &s, Symbol name, int classtag)
+void code_init_class(ostream &s, Symbol name, int classtag)
 {
   emit_init_ref(name, s); s << LABEL;
   emit_return(s);
@@ -689,7 +704,8 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
    std::vector<std::pair<Symbol, Symbol> > empty_table;
    std::map<Symbol, int> empty_pos;
-   build_dispatch_tables(root(), empty_table, empty_pos);
+   std::vector<Symbol> empty_attrs;
+   process_features(root(), empty_attrs, empty_table, empty_pos);
 
    code();
    exitscope();
@@ -895,25 +911,28 @@ void CgenClassTable::code_dispatch_tables() {
 
 }
 
-void CgenClassTable::build_dispatch_tables(CgenNodeP node, std::vector<std::pair<Symbol, Symbol> > tbl, std::map<Symbol, int> method_pos) {
+void CgenClassTable::process_features(CgenNodeP node, std::vector<Symbol> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos) {
   Features features = node->features;
   for (int i = features->first(); features->more(i); i = features->next(i)) {
     if (method_class* method = dynamic_cast<method_class*>(features->nth(i))) {
       std::pair<Symbol, Symbol> entry = std::make_pair(node->name, method->name);
       std::map<Symbol, int>::iterator it = method_pos.find(method->name);
       if (it != method_pos.end()) {
-        tbl[it->second] = entry;
+        dispatch_tbl[it->second] = entry;
       } else { // not an override, add to table at next position
-        method_pos[method->name] = tbl.size();
-        tbl.push_back(entry);
+        method_pos[method->name] = dispatch_tbl.size();
+        dispatch_tbl.push_back(entry);
       }
+    } else if (attr_class* attr = dynamic_cast<attr_class*>(features->nth(i))) {
+      attrs.push_back(attr->type_decl);
     }
   }
-  dispatch_tables[node->name] = tbl;
-    List<CgenNode> *children = node->get_children();
-    for (children; children != NULL; children = children->tl()) {
-      build_dispatch_tables(children->hd(), tbl, method_pos);
-    }
+  dispatch_tables[node->name] = dispatch_tbl;
+  class_attrs[node->name] = attrs;
+  List<CgenNode> *children = node->get_children();
+  for (children; children != NULL; children = children->tl()) {
+    process_features(children->hd(), attrs, dispatch_tbl, method_pos);
+  }
 }
 
 void CgenNode::add_child(CgenNodeP n)
@@ -941,38 +960,31 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
-  code_proto_empty(str, Object, objectclasstag);
-  code_proto_empty(str, IO, ioclasstag);
+  code_proto_class(str, Object, class_attrs[Object], objectclasstag);
+  code_proto_class(str, IO, class_attrs[IO], ioclasstag);
   code_proto_string(str, stringclasstag);
   code_proto_int(str, intclasstag);
 
   for(size_t i = customclasstag_start; i < class_syms.size(); i++) {
-    code_proto_empty(str, class_syms[i], i);
+    code_proto_class(str, class_syms[i], class_attrs[class_syms[i]], i);
   }
 
   code_class_name_table(str, class_syms);
 
   code_dispatch_tables();
 
-
-//                 TODO: Add your code to emit
-//                   - prototype objects
-//                   - class_nameTab
-//                   - dispatch tables
-//
-
   if (cgen_debug) cout << "coding global text" << endl;
   code_global_text();
 
 
-  code_init_empty(str, Object, objectclasstag);
-  code_init_empty(str, IO, ioclasstag);
+  code_init_class(str, Object, objectclasstag);
+  code_init_class(str, IO, ioclasstag);
   code_init_int(str, intclasstag);
   code_init_string(str, stringclasstag);
   code_init_bool(str, boolclasstag);
 
   for(size_t i = customclasstag_start; i < class_syms.size(); i++) {
-    code_init_empty(str, class_syms[i], i );
+    code_init_class(str, class_syms[i], i );
   }
 
 // HACK: copy/paste from reference compiler output for now
@@ -990,11 +1002,6 @@ void CgenClassTable::code()
 "        lw      $ra 4($sp)\n"
 "        addiu   $sp $sp 12\n"
 "        jr      $ra\n";
-
-//                 TODO: Add your code to emit
-//                   - object initializer
-//                   - the class methods
-//                   - etc...
 
 }
 

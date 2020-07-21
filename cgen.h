@@ -22,6 +22,7 @@ private:
    std::vector<Symbol> class_syms;
    std::map<Symbol, std::vector<std::pair<Symbol, Symbol> > > dispatch_tables;
    ostream& str;
+   std::map<Symbol, std::vector<Symbol> > class_attrs;
    int objectclasstag;
    int ioclasstag;
    int stringclasstag;
@@ -50,7 +51,7 @@ private:
    void install_classes(Classes cs);
    void build_inheritance_tree();
    void set_relations(CgenNodeP nd);
-   void build_dispatch_tables(CgenNodeP node, std::vector<std::pair<Symbol, Symbol> > dispTbl, std::map<Symbol, int> method_pos);
+   void process_features(CgenNodeP node, std::vector<Symbol> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos);
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
