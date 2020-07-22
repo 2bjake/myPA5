@@ -543,7 +543,7 @@ void code_default_attr(ostream &s, Symbol type) {
   s << endl;
 }
 
-void code_proto_class(ostream &s, Symbol name, std::vector<Symbol> attrs, int classtag)
+void code_proto_class(ostream &s, Symbol name, std::vector<attr_class*> attrs, int classtag)
 {
   // Add -1 eye catcher
   s << WORD << "-1" << endl;
@@ -554,7 +554,7 @@ void code_proto_class(ostream &s, Symbol name, std::vector<Symbol> attrs, int cl
       << WORD; emit_disptable_ref(name, s); s << endl;
 
   for (size_t i = 0; i < attrs.size(); i++) {
-    code_default_attr(s, attrs[i]);
+    code_default_attr(s, attrs[i]->type_decl);
   }
 }
 
@@ -718,7 +718,7 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
    std::vector<std::pair<Symbol, Symbol> > empty_table;
    std::map<Symbol, int> empty_pos;
-   std::vector<Symbol> empty_attrs;
+   std::vector<attr_class*> empty_attrs;
    process_features(root(), empty_attrs, empty_table, empty_pos);
 
    code();
@@ -920,14 +920,13 @@ void CgenClassTable::code_dispatch_table(Symbol clazz, std::vector<std::pair<Sym
 }
 
 void CgenClassTable::code_dispatch_tables() {
-  std::map<Symbol, std::vector<std::pair<Symbol, Symbol> > >::iterator it = dispatch_tables.begin();
-  for (it; it != dispatch_tables.end(); ++it) {
-    code_dispatch_table(it->first, it->second);
+  for (std::vector<CgenNodeP>::iterator it = ordered_nodes.begin(); it != ordered_nodes.end(); ++it) {
+    CgenNodeP node = *it;
+    code_dispatch_table(node->get_name(), node->get_dispatch_table());
   }
-
 }
 
-void CgenClassTable::process_features(CgenNodeP node, std::vector<Symbol> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos) {
+void CgenClassTable::process_features(CgenNodeP node, std::vector<attr_class*> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos) {
   Features features = node->features;
   for (int i = features->first(); features->more(i); i = features->next(i)) {
     if (method_class* method = dynamic_cast<method_class*>(features->nth(i))) {
@@ -940,11 +939,11 @@ void CgenClassTable::process_features(CgenNodeP node, std::vector<Symbol> attrs,
         dispatch_tbl.push_back(entry);
       }
     } else if (attr_class* attr = dynamic_cast<attr_class*>(features->nth(i))) {
-      attrs.push_back(attr->type_decl);
+      attrs.push_back(attr);
     }
   }
-  dispatch_tables[node->name] = dispatch_tbl;
-  class_attrs[node->name] = attrs;
+  node->set_dispatch_table(dispatch_tbl);
+  node->set_attrs(attrs);
   List<CgenNode> *children = node->get_children();
   for (children; children != NULL; children = children->tl()) {
     process_features(children->hd(), attrs, dispatch_tbl, method_pos);
@@ -976,14 +975,15 @@ void CgenClassTable::code()
   if (cgen_debug) cout << "coding constants" << endl;
   code_constants();
 
-  code_proto_class(str, Object, class_attrs[Object], objectclasstag);
-  code_proto_class(str, IO, class_attrs[IO], ioclasstag);
+
+  code_proto_class(str, Object, ordered_nodes[objectclasstag]->get_attrs(), objectclasstag);
+  code_proto_class(str, IO, ordered_nodes[ioclasstag]->get_attrs(), ioclasstag);
   code_proto_string(str, stringclasstag);
   code_proto_int(str, intclasstag);
 
   for(size_t i = customclasstag_start; i < ordered_nodes.size(); i++) {
     Symbol name = ordered_nodes[i]->get_name();
-    code_proto_class(str, name, class_attrs[name], i);
+    code_proto_class(str, name, ordered_nodes[i]->get_attrs(), i);
   }
 
   code_class_name_table(str, ordered_nodes);
