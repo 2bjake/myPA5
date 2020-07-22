@@ -14,7 +14,9 @@ class Bar inherits Foo {
 *)
 
 class Foo {
+  xb: Int <- x;
   x: Int <- 2;
+  x2: Int <- x;
   y: Bool <- true;
   z: String <- "hi";
 };

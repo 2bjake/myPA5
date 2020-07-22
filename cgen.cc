@@ -558,10 +558,14 @@ void code_proto_class(ostream &s, Symbol name, std::vector<Symbol> attrs, int cl
   }
 }
 
-void code_init_class(ostream &s, CgenNodeP node, int classtag)
+void code_class_init(ostream &s, CgenNodeP node, int classtag)
 {
-  if (node->basic()) { return; }
   emit_init_ref(node->get_name(), s); s << LABEL;
+  if (node->basic()) {
+    emit_return(s);
+    return;
+  }
+
   emit_method_entry(s);
   if (!node->get_parentnd()->basic()) {
     s << JAL << node->parent << CLASSINIT_SUFFIX << endl;
@@ -990,7 +994,7 @@ void CgenClassTable::code()
   code_global_text();
 
   for(size_t i = 0; i < ordered_nodes.size(); i++) {
-    code_init_class(str, ordered_nodes[i], i);
+    code_class_init(str, ordered_nodes[i], i);
   }
 
 // HACK: copy/paste from reference compiler output for now

@@ -22,7 +22,7 @@ private:
    std::vector<CgenNodeP> ordered_nodes;
    std::map<Symbol, std::vector<std::pair<Symbol, Symbol> > > dispatch_tables;
    ostream& str;
-   std::map<Symbol, std::vector<Symbol> > class_attrs;
+   std::map<Symbol, std::vector<Symbol> > class_attrs; //TODO: Symbol, position? init
    int objectclasstag;
    int ioclasstag;
    int stringclasstag;
@@ -64,7 +64,6 @@ private:
    CgenNodeP parentnd;                        // Parent of class
    List<CgenNode> *children;                  // Children of class
    Basicness basic_status;                    // `Basic' if class is basic
-                                              // `NotBasic' otherwise
 
 public:
    CgenNode(Class_ c,
