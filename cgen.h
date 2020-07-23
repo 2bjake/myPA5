@@ -63,7 +63,8 @@ private:
    List<CgenNode> *children;                  // Children of class
    Basicness basic_status;                    // `Basic' if class is basic
    std::vector<std::pair<Symbol, Symbol> > dispatch_table;
-   std::vector<attr_class*> attrs;
+   std::vector<attr_class*> inherited_attrs;
+   std::vector<attr_class*> declared_attrs;
    std::map<Symbol, int> attr_pos;
 
 public:
@@ -80,13 +81,26 @@ public:
    void set_dispatch_table(std::vector<std::pair<Symbol, Symbol> > dispatch_table) { this->dispatch_table = dispatch_table; }
    std::vector<std::pair<Symbol, Symbol> > get_dispatch_table() { return dispatch_table; }
 
-   void set_attrs(std::vector<attr_class*> attrs) {
-      this->attrs = attrs;
-      for (int i = 0; i < attrs.size(); i++) {
-         attr_pos[attrs[i]->name] = i;
+   void set_attrs(std::vector<attr_class*> inherited, std::vector<attr_class*> declared) {
+      this->inherited_attrs = inherited;
+      this->declared_attrs = declared;
+
+      size_t inherited_count = inherited.size();
+      for (size_t i = 0; i < inherited_count; i++) {
+         attr_pos[inherited[i]->name] = i;
+      }
+      for (size_t i = 0; i < declared.size(); i++) {
+         attr_pos[declared[i]->name] = i + inherited_count;
       }
    }
-   std::vector<attr_class*> get_attrs() { return attrs; }
+   std::vector<attr_class*> get_inherited_attrs() { return inherited_attrs; }
+   std::vector<attr_class*> get_declared_attrs() { return declared_attrs; }
+   std::vector<attr_class*> get_all_attrs() {
+      std::vector<attr_class*> attrs;
+      attrs.insert(attrs.begin(), inherited_attrs.begin(), inherited_attrs.end());
+      attrs.insert(attrs.end(), declared_attrs.begin(), declared_attrs.end());
+      return attrs;
+   }
 
    int get_attr_pos(Symbol name) { return attr_pos[name]; }
 };

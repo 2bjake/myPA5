@@ -570,7 +570,16 @@ void code_class_init(ostream &s, CgenNodeP node, int classtag)
   if (!node->get_parentnd()->basic()) {
     s << JAL << node->parent << CLASSINIT_SUFFIX << endl;
   }
-  // TODO: init attrs
+
+  // initialize attributes
+  std::vector<attr_class*> attrs = node->get_declared_attrs();
+  for (size_t i = 0; i < attrs.size(); i++) {
+    if (attrs[i]->init->get_type() != NULL) {
+      attrs[i]->init->code(node, s);
+      int offset = DEFAULT_OBJFIELDS + node->get_attr_pos(attrs[i]->name);
+      emit_store(ACC, offset, SELF, s);
+    }
+  }
   emit_move(ACC, SELF, s);
   emit_method_exit(0, s);
 }
@@ -926,7 +935,8 @@ void CgenClassTable::code_dispatch_tables() {
   }
 }
 
-void CgenClassTable::process_features(CgenNodeP node, std::vector<attr_class*> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos) {
+void CgenClassTable::process_features(CgenNodeP node, std::vector<attr_class*> inherited_attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos) {
+  std::vector<attr_class*> declared_attrs;
   Features features = node->features;
   for (int i = features->first(); features->more(i); i = features->next(i)) {
     if (method_class* method = dynamic_cast<method_class*>(features->nth(i))) {
@@ -939,14 +949,15 @@ void CgenClassTable::process_features(CgenNodeP node, std::vector<attr_class*> a
         dispatch_tbl.push_back(entry);
       }
     } else if (attr_class* attr = dynamic_cast<attr_class*>(features->nth(i))) {
-      attrs.push_back(attr);
+      declared_attrs.push_back(attr);
     }
   }
   node->set_dispatch_table(dispatch_tbl);
-  node->set_attrs(attrs);
+  node->set_attrs(inherited_attrs, declared_attrs);
   List<CgenNode> *children = node->get_children();
+  inherited_attrs.insert(inherited_attrs.end(), declared_attrs.begin(), declared_attrs.end());
   for (children; children != NULL; children = children->tl()) {
-    process_features(children->hd(), attrs, dispatch_tbl, method_pos);
+    process_features(children->hd(), inherited_attrs, dispatch_tbl, method_pos);
   }
 }
 
@@ -976,14 +987,14 @@ void CgenClassTable::code()
   code_constants();
 
 
-  code_proto_class(str, Object, ordered_nodes[objectclasstag]->get_attrs(), objectclasstag);
-  code_proto_class(str, IO, ordered_nodes[ioclasstag]->get_attrs(), ioclasstag);
+  code_proto_class(str, Object, ordered_nodes[objectclasstag]->get_all_attrs(), objectclasstag);
+  code_proto_class(str, IO, ordered_nodes[ioclasstag]->get_all_attrs(), ioclasstag);
   code_proto_string(str, stringclasstag);
   code_proto_int(str, intclasstag);
 
   for(size_t i = customclasstag_start; i < ordered_nodes.size(); i++) {
     Symbol name = ordered_nodes[i]->get_name();
-    code_proto_class(str, name, ordered_nodes[i]->get_attrs(), i);
+    code_proto_class(str, name, ordered_nodes[i]->get_all_attrs(), i);
   }
 
   code_class_name_table(str, ordered_nodes);
@@ -1048,58 +1059,58 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //
 //*****************************************************************
 
-void assign_class::code(ostream &s) {
+void assign_class::code(CgenNode* so, ostream &s) {
 }
 
-void static_dispatch_class::code(ostream &s) {
+void static_dispatch_class::code(CgenNode* so, ostream &s) {
 }
 
-void dispatch_class::code(ostream &s) {
+void dispatch_class::code(CgenNode* so, ostream &s) {
 }
 
-void cond_class::code(ostream &s) {
+void cond_class::code(CgenNode* so, ostream &s) {
 }
 
-void loop_class::code(ostream &s) {
+void loop_class::code(CgenNode* so, ostream &s) {
 }
 
-void typcase_class::code(ostream &s) {
+void typcase_class::code(CgenNode* so, ostream &s) {
 }
 
-void block_class::code(ostream &s) {
+void block_class::code(CgenNode* so, ostream &s) {
 }
 
-void let_class::code(ostream &s) {
+void let_class::code(CgenNode* so, ostream &s) {
 }
 
-void plus_class::code(ostream &s) {
+void plus_class::code(CgenNode* so, ostream &s) {
 }
 
-void sub_class::code(ostream &s) {
+void sub_class::code(CgenNode* so, ostream &s) {
 }
 
-void mul_class::code(ostream &s) {
+void mul_class::code(CgenNode* so, ostream &s) {
 }
 
-void divide_class::code(ostream &s) {
+void divide_class::code(CgenNode* so, ostream &s) {
 }
 
-void neg_class::code(ostream &s) {
+void neg_class::code(CgenNode* so, ostream &s) {
 }
 
-void lt_class::code(ostream &s) {
+void lt_class::code(CgenNode* so, ostream &s) {
 }
 
-void eq_class::code(ostream &s) {
+void eq_class::code(CgenNode* so, ostream &s) {
 }
 
-void leq_class::code(ostream &s) {
+void leq_class::code(CgenNode* so, ostream &s) {
 }
 
-void comp_class::code(ostream &s) {
+void comp_class::code(CgenNode* so, ostream &s) {
 }
 
-void int_const_class::code(ostream& s)
+void int_const_class::code(CgenNode* so, ostream& s)
 {
   //
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
@@ -1107,26 +1118,28 @@ void int_const_class::code(ostream& s)
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(ostream& s)
+void string_const_class::code(CgenNode* so, ostream& s)
 {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(ostream& s)
+void bool_const_class::code(CgenNode* so, ostream& s)
 {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(ostream &s) {
+void new__class::code(CgenNode* so, ostream &s) {
 }
 
-void isvoid_class::code(ostream &s) {
+void isvoid_class::code(CgenNode* so, ostream &s) {
 }
 
-void no_expr_class::code(ostream &s) {
+void no_expr_class::code(CgenNode* so, ostream &s) {
 }
 
-void object_class::code(ostream &s) {
+void object_class::code(CgenNode* so, ostream &s) {
+  int offset = so->get_attr_pos(name) + DEFAULT_OBJFIELDS;
+  emit_load(ACC, offset, SELF, s);
 }
 
 
