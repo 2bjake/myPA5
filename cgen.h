@@ -20,6 +20,7 @@ class CgenClassTable : public SymbolTable<Symbol,CgenNode> {
 private:
    List<CgenNode> *nds;
    std::vector<CgenNodeP> ordered_nodes;
+   std::vector<std::pair<CgenNodeP, method_class*> > methods;
    ostream& str;
    int objectclasstag;
    int ioclasstag;
@@ -38,6 +39,7 @@ private:
    void code_constants();
    void code_dispatch_table(Symbol clazz, std::vector<std::pair<Symbol, Symbol> > methods);
    void code_dispatch_tables();
+   void code_methods();
 
 // The following creates an inheritance graph from
 // a list of classes.  The graph is implemented as

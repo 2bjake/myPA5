@@ -326,6 +326,13 @@ static void emit_push(char *reg, ostream& str)
   emit_addiu(SP,SP,-4,str);
 }
 
+static void emit_pop(char *dest, ostream& str)
+{
+  emit_load(dest, 1, SP, str);
+  emit_addiu(SP, SP, 4, str);
+}
+
+
 //
 // Fetch the integer value in an Int object.
 // Emits code to fetch the integer value of the Integer object pointed
@@ -935,11 +942,27 @@ void CgenClassTable::code_dispatch_tables() {
   }
 }
 
+void CgenClassTable::code_methods() {
+  for (size_t i = 0; i < methods.size(); i++) {
+    method_class* method = methods[i].second;
+    emit_method_ref(methods[i].first->get_name(), method->name, str); str << LABEL;
+    emit_method_entry(str);
+    method->expr->code(methods[i].first, str);
+    emit_method_exit(method->formals->len(), str);
+  }
+}
+
 void CgenClassTable::process_features(CgenNodeP node, std::vector<attr_class*> inherited_attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos) {
   std::vector<attr_class*> declared_attrs;
   Features features = node->features;
   for (int i = features->first(); features->more(i); i = features->next(i)) {
     if (method_class* method = dynamic_cast<method_class*>(features->nth(i))) {
+      // store method for declaration/coding
+      if (!node->basic()) {
+        methods.push_back(std::make_pair(node, method));
+      }
+
+      // store method on class for generating dispatch tables
       std::pair<Symbol, Symbol> entry = std::make_pair(node->name, method->name);
       std::map<Symbol, int>::iterator it = method_pos.find(method->name);
       if (it != method_pos.end()) {
@@ -1008,22 +1031,7 @@ void CgenClassTable::code()
     code_class_init(str, ordered_nodes[i], i);
   }
 
-// HACK: copy/paste from reference compiler output for now
-  str <<
-  "Main.main:\n"
-"        addiu   $sp $sp -12\n"
-"        sw      $fp 12($sp)\n"
-"        sw      $s0 8($sp)\n"
-"        sw      $ra 4($sp)\n"
-"        addiu   $fp $sp 4\n"
-"        move    $s0 $a0\n"
-"        la      $a0 int_const0\n"
-"        lw      $fp 12($sp)\n"
-"        lw      $s0 8($sp)\n"
-"        lw      $ra 4($sp)\n"
-"        addiu   $sp $sp 12\n"
-"        jr      $ra\n";
-
+  code_methods();
 }
 
 
@@ -1083,19 +1091,39 @@ void block_class::code(CgenNode* so, ostream &s) {
 void let_class::code(CgenNode* so, ostream &s) {
 }
 
+#define code_arith(op) \
+e1->code(so, s); \
+emit_fetch_int(ACC, ACC, s); \
+emit_push(ACC, s); \
+e2->code(so, s); \
+s << JAL; emit_method_ref(Object, ::copy, s); s << endl; \
+emit_fetch_int(T2, ACC, s); \
+emit_pop(T1, s); \
+op(T1, T1, T2, s); \
+emit_store_int(T1, ACC, s);
+
 void plus_class::code(CgenNode* so, ostream &s) {
+  code_arith(emit_add)
 }
 
 void sub_class::code(CgenNode* so, ostream &s) {
+  code_arith(emit_sub)
 }
 
 void mul_class::code(CgenNode* so, ostream &s) {
+  code_arith(emit_mul)
 }
 
 void divide_class::code(CgenNode* so, ostream &s) {
+  code_arith(emit_div)
 }
 
 void neg_class::code(CgenNode* so, ostream &s) {
+  e1->code(so, s);
+  s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
+  emit_fetch_int(T1, ACC, s);
+  emit_neg(T1, T1, s);
+  emit_store_int(T1, ACC, s);
 }
 
 void lt_class::code(CgenNode* so, ostream &s) {
@@ -1138,8 +1166,12 @@ void no_expr_class::code(CgenNode* so, ostream &s) {
 }
 
 void object_class::code(CgenNode* so, ostream &s) {
-  int offset = so->get_attr_pos(name) + DEFAULT_OBJFIELDS;
-  emit_load(ACC, offset, SELF, s);
+  if (name == self) {
+    emit_move(ACC, SELF, s);
+  } else {
+    int offset = so->get_attr_pos(name) + DEFAULT_OBJFIELDS;
+    emit_load(ACC, offset, SELF, s);
+  }
 }
 
 
