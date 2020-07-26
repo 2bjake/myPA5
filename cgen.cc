@@ -1091,7 +1091,16 @@ void dispatch_class::code(CgenNode* so, ostream &s) {
 }
 
 void cond_class::code(CgenNode* so, ostream &s) {
-  //TODO
+  int else_label = label_count++;
+  int fi_label = label_count++;
+  this->pred->code(so, s);
+  emit_fetch_bool(ACC, ACC, s);
+  emit_beqz(ACC, else_label, s);
+  then_exp->code(so, s);
+  emit_branch(fi_label, s);
+  emit_label_def(else_label, s);
+  else_exp->code(so, s);
+  emit_label_def(fi_label, s);
 }
 
 void loop_class::code(CgenNode* so, ostream &s) {
@@ -1136,7 +1145,7 @@ void mul_class::code(CgenNode* so, ostream &s) {
 }
 
 void divide_class::code(CgenNode* so, ostream &s) {
-  code_arith(emit_div)
+  code_arith(emit_div) //TODO: handle divide by zero?
 }
 
 void neg_class::code(CgenNode* so, ostream &s) {
@@ -1221,7 +1230,7 @@ void isvoid_class::code(CgenNode* so, ostream &s) {
 }
 
 void no_expr_class::code(CgenNode* so, ostream &s) {
-  //TODO
+  //noop
 }
 
 void object_class::code(CgenNode* so, ostream &s) {

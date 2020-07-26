@@ -36,6 +36,6 @@ class Main inherits IO {
   --foo: Foo <- new Foo;
   --main2():Bool { 2 < 3 };
   --main3():Bool { 2 = 3 };
-  main():Foo { new Foo };
+  main():Int { if true then 2 else 4 fi };
 };
 
