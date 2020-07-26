@@ -111,6 +111,10 @@ static char *gc_collect_names[] =
   { "_NoGC_Collect", "_GenGC_Collect", "_ScnGC_Collect" };
 
 
+// label count, for generating unique labels
+// increment after using
+int label_count = 0;
+
 //  BoolConst is a class that implements code generation for operations
 //  on the two booleans, which are given global names here.
 BoolConst falsebool(FALSE);
@@ -332,6 +336,13 @@ static void emit_pop(char *dest, ostream& str)
   emit_addiu(SP, SP, 4, str);
 }
 
+//
+// Fetch the integer value in an Bool object.
+// Emits code to fetch the integer value of the Bool object pointed
+// to by register source into the register dest
+//
+static void emit_fetch_bool(char *dest, char *source, ostream& s)
+{ emit_load(dest, DEFAULT_OBJFIELDS, source, s); }
 
 //
 // Fetch the integer value in an Int object.
@@ -1126,16 +1137,38 @@ void neg_class::code(CgenNode* so, ostream &s) {
   emit_store_int(T1, ACC, s);
 }
 
+#define code_compare(op) \
+e1->code(so, s); \
+emit_fetch_int(ACC, ACC, s); \
+emit_push(ACC, s); \
+e2->code(so, s); \
+s << JAL; emit_method_ref(Object, ::copy, s); s << endl; \
+emit_fetch_int(T2, ACC, s); \
+emit_pop(T1, s); \
+emit_load_bool(ACC, truebool, s); \
+op(T1, T2, label_count, s); \
+emit_load_bool(ACC, falsebool, s); \
+emit_label_def(label_count++, s);
+
 void lt_class::code(CgenNode* so, ostream &s) {
+  code_compare(emit_blt)
 }
 
 void eq_class::code(CgenNode* so, ostream &s) {
+  code_compare(emit_beq)
 }
 
 void leq_class::code(CgenNode* so, ostream &s) {
+  code_compare(emit_bleq)
 }
 
 void comp_class::code(CgenNode* so, ostream &s) {
+  e1->code(so, s);
+  emit_fetch_bool(T1, ACC, s);
+  emit_load_bool(ACC, truebool, s);
+  emit_beqz(T1, label_count, s);
+  emit_load_bool(ACC, falsebool, s);
+  emit_label_def(label_count++, s);
 }
 
 void int_const_class::code(CgenNode* so, ostream& s)

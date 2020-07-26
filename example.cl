@@ -32,6 +32,8 @@ class Bar inherits Foo {
 *)
 class Main inherits IO {
   --foo: Foo <- new Foo;
-  main():Main { self };
+  main2():Bool { 2 < 3 };
+  main3():Bool { 2 = 3 };
+  main():Bool { not true };
 };
 
