@@ -1079,27 +1079,37 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //*****************************************************************
 
 void assign_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void static_dispatch_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void dispatch_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void cond_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void loop_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void typcase_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void block_class::code(CgenNode* so, ostream &s) {
+  for(int i = body->first(); body->more(i); i = body->next(i)) {
+    body->nth(i)->code(so, s);
+  }
 }
 
 void let_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 #define code_arith(op) \
@@ -1190,12 +1200,28 @@ void bool_const_class::code(CgenNode* so, ostream& s)
 }
 
 void new__class::code(CgenNode* so, ostream &s) {
+  Symbol name;
+  if (type_name == SELF_TYPE) {
+    name = so->get_name();
+  } else {
+    name = type_name;
+  }
+  s << LA << ACC << " "; emit_protobj_ref(name, s); s << endl;
+  s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
+  s << JAL; emit_init_ref(name, s); s << endl;
 }
 
 void isvoid_class::code(CgenNode* so, ostream &s) {
+  e1->code(so, s);
+  emit_move(T1, ACC, s);
+  emit_load_bool(ACC, truebool, s);
+  emit_beqz(T1, label_count, s);
+  emit_load_bool(ACC, falsebool, s);
+  emit_label_def(label_count++, s);
 }
 
 void no_expr_class::code(CgenNode* so, ostream &s) {
+  //TODO
 }
 
 void object_class::code(CgenNode* so, ostream &s) {
@@ -1206,5 +1232,3 @@ void object_class::code(CgenNode* so, ostream &s) {
     emit_load(ACC, offset, SELF, s);
   }
 }
-
-
