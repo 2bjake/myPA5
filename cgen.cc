@@ -1095,7 +1095,9 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //*****************************************************************
 
 void assign_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  //TODO
+  expr->code(so, env, s);
+  RegisterOffset *loc = env.lookup(name);
+  emit_store(ACC, loc, s);
 }
 
 void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
@@ -1120,7 +1122,16 @@ void cond_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, os
 }
 
 void loop_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  //TODO
+  int loop_begin_label = label_count++;
+  int loop_end_label = label_count++;
+  emit_label_def(loop_begin_label, s);
+  pred->code(so, env, s);
+  emit_fetch_bool(ACC, ACC, s);
+  emit_beqz(ACC, loop_end_label, s);
+  body->code(so, env, s);
+  emit_branch(loop_begin_label, s);
+  emit_move(ACC, ZERO, s);
+  emit_label_def(loop_end_label, s);
 }
 
 void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {

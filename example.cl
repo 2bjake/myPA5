@@ -31,11 +31,9 @@ class Bar inherits Foo {
 };
 
 
---class Foo {};
+
 class Main inherits IO {
-  --foo: Foo <- new Foo;
-  --main2():Bool { 2 < 3 };
-  --main3():Bool { 2 = 3 };
-  main():Int { if true then 2 else 4 fi };
+  x: Int;
+  main():Int { x <- 2 };
 };
 
