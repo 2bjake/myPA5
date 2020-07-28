@@ -104,7 +104,16 @@ public:
       return attrs;
    }
 
-   int get_attr_pos(Symbol name) { return attr_pos[name]; }
+   SymbolTable<Symbol, RegisterOffset> make_environment() {
+      SymbolTable<Symbol, RegisterOffset> env;
+      env.enterscope();
+      std::vector<attr_class*> all_attrs = get_all_attrs();
+      for (size_t i = 0; i < all_attrs.size(); i++) {
+         int offset = DEFAULT_OBJFIELDS + attr_pos[all_attrs[i]->name];
+         env.addid(all_attrs[i]->name, new RegisterOffset(offset, SELF));
+      }
+      return env;
+   }
 };
 
 class BoolConst

@@ -8,6 +8,7 @@
 #include "tree.h"
 #include "cool.h"
 #include "stringtab.h"
+#include "symtab.h"
 #define yylineno curr_lineno;
 extern int yylineno;
 
@@ -92,18 +93,25 @@ virtual void dump_with_types(ostream& ,int) = 0;
 void dump_with_types(ostream& ,int);
 
 class CgenNode;
+class RegisterOffset {
+public:
+	int offset;
+	char* reg;
+
+	RegisterOffset(int offset, char* reg) : offset(offset), reg(reg) {}
+};
 
 #define Expression_EXTRAS                    \
 Symbol type;                                 \
 Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
-virtual void code(CgenNode*, ostream&) = 0; \
+virtual void code(CgenNode*, SymbolTable<Symbol, RegisterOffset>, ostream&) = 0; \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
 Expression_class() { type = (Symbol) NULL; }
 
 #define Expression_SHARED_EXTRAS           \
-void code(CgenNode*, ostream&); 			   \
+void code(CgenNode*, SymbolTable<Symbol, RegisterOffset>, ostream&); 			   \
 void dump_with_types(ostream&,int);
 
 

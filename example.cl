@@ -12,7 +12,7 @@ class Bar inherits Foo {
     myFunc(): Int { 0 };
 };
 *)
-(*
+
 class Foo {
   xb: Int <- x;
   x: Int <- 2;
@@ -29,9 +29,9 @@ class Bar inherits Foo {
   z2: Bool <- true;
   f(x: Int): Int { x };
 };
-*)
 
-class Foo {};
+
+--class Foo {};
 class Main inherits IO {
   --foo: Foo <- new Foo;
   --main2():Bool { 2 < 3 };
