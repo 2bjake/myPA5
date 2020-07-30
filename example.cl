@@ -24,7 +24,7 @@ class Foo {
 };
 
 class Bar inherits Foo {
-  a: Int;
+  a: Int <- 1 + 2;
   b: Foo;
   z2: Bool <- true;
   f(x: Int): Int { x };

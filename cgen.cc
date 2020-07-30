@@ -387,11 +387,14 @@ static void emit_gc_check(char *source, ostream &s)
 }
 
 static void emit_method_entry(int temporaries_count, ostream &s) {
-  emit_addiu(SP, SP,  (3 + temporaries_count) * -4, s); // make space on stack for frame
-  emit_store(FP, 3, SP, s); // save caller's frame pointer
-  emit_store(SELF, 2, SP, s); // save caller's self
-  emit_store(RA, 1, SP, s); // save return address
-  emit_addiu(FP, SP, 4, s); // update frame pointer
+  // stack pointer is at the location of the new frame pointer
+  emit_store(FP, CALLER_FP_OFFSET, SP, s); // save caller's frame pointer
+  emit_move(FP, SP, s); // update frame pointer
+
+  emit_store(SELF, CALLER_SELF_OFFSET, FP, s); // save caller's self
+  emit_store(RA, RA_OFFSET, FP, s); // save return address
+
+  emit_addiu(SP, SP,  -4 * (3 + temporaries_count), s); // move stack pointer to end of frame
   emit_move(SELF, ACC, s); // update self
 
 }
@@ -399,10 +402,11 @@ static void emit_method_entry(int temporaries_count, ostream &s) {
 // restores caller's registers, tears down frame, and returns
 // Note: this code does not set up the ACC return value
 static void emit_method_exit(int arg_count, int temporaries_count, ostream &s) {
-  emit_load(FP, 3, SP, s); // restore caller's frame pointer
-  emit_load(SELF, 2, SP, s); // restore caller's self
-  emit_load(RA, 1, SP, s); // retstore return address
-  emit_addiu(SP, SP, (3 + temporaries_count + arg_count) * 4, s); // pop stack space for frame, temporaries and args
+  emit_load(RA, RA_OFFSET, FP, s); // restore return address
+  emit_load(SELF, CALLER_SELF_OFFSET, FP, s); // restore caller's self
+  emit_load(FP, CALLER_FP_OFFSET, FP, s); // restore caller's frame pointer
+
+  emit_addiu(SP, SP, 4 * (3 + temporaries_count + arg_count), s); // pop stack space for frame, temporaries and args
   emit_return(s); // return
 }
 
