@@ -935,6 +935,9 @@ void CgenClassTable::install_class(CgenNodeP nd)
 
 void CgenClassTable::install_classes(Classes cs)
 {
+  // TODO: consider iterating through classes by hierarchy
+  // to ensure super classes have lower tag values than
+  // sub classes.
   for(int i = cs->first(); cs->more(i); i = cs->next(i)) {
     CgenNodeP node = new CgenNode(cs->nth(i),NotBasic,this);
     install_class(node);
@@ -1151,7 +1154,7 @@ void loop_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
 }
 
 void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  //TODO
+  // TODO
 }
 
 void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
@@ -1230,7 +1233,7 @@ void lt_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int 
 }
 
 void eq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  code_compare(emit_beq)
+  code_compare(emit_beq) // TODO: equal needs to handle non-Ints
 }
 
 void leq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
@@ -1248,14 +1251,13 @@ void comp_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
 
 void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
 {
-  //
-  // Need to be sure we have an IntEntry *, not an arbitrary Symbol
-  //
+  // TODO: Need to be sure we have an IntEntry *, not an arbitrary Symbol
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
 void string_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
 {
+  // TODO: Need to be sure we have an StringEntry *, not an arbitrary Symbol?
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
@@ -1321,7 +1323,11 @@ int loop_class::calc_temporaries() {
 }
 
 int typcase_class::calc_temporaries() {
-  return 0; // TODO
+  int temps = expr->calc_temporaries();
+  for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
+    temps = std::max(temps, 1 + cases->nth(i)->get_expr()->calc_temporaries());
+  }
+  return temps;
 }
 
 int block_class::calc_temporaries() {

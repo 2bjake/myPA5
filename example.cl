@@ -30,10 +30,19 @@ class Bar inherits Foo {
   f(x: Int): Int { x };
 };
 
+class Baz inherits Bar {};
 
 
 class Main inherits IO {
   x: Foo <- new Foo;
   y: Int <- 2;
-  main():Int { let z: Int <- 2 in y + z };
+  z: Baz <- new Baz;
+  main():Int {
+    case z of
+      o: Object => 0;
+      s: String => 3;
+      f: Foo => 1;
+      b: Bar => 2;
+    esac
+  };
 };

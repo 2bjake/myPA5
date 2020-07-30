@@ -17,7 +17,8 @@
         "memory": "cpp",
         "ratio": "cpp",
         "tuple": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "vector": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }
