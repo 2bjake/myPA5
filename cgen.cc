@@ -769,6 +769,7 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
    install_basic_classes();
    install_classes(classes);
    build_inheritance_tree();
+   order_classes(root());
 
    std::vector<std::pair<Symbol, Symbol> > empty_table;
    std::map<Symbol, int> empty_pos;
@@ -941,7 +942,6 @@ void CgenClassTable::install_classes(Classes cs)
   for(int i = cs->first(); cs->more(i); i = cs->next(i)) {
     CgenNodeP node = new CgenNode(cs->nth(i),NotBasic,this);
     install_class(node);
-    ordered_nodes.push_back(node);
   }
 }
 
@@ -952,6 +952,16 @@ void CgenClassTable::build_inheritance_tree()
 {
   for(List<CgenNode> *l = nds; l; l = l->tl()) {
       set_relations(l->hd());
+  }
+}
+
+void CgenClassTable::order_classes(CgenNodeP nd) {
+  if (!nd->basic()) {
+    ordered_nodes.push_back(nd);
+  }
+
+  for (List<CgenNode> *children = nd->get_children(); children != NULL; children = children->tl()) {
+    order_classes(children->hd());
   }
 }
 

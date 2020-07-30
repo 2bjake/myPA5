@@ -50,6 +50,7 @@ private:
    void install_class(CgenNodeP nd);
    void install_classes(Classes cs);
    void build_inheritance_tree();
+   void order_classes(CgenNodeP nd);
    void set_relations(CgenNodeP nd);
    void process_features(CgenNodeP node, std::vector<attr_class*> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos);
 public:

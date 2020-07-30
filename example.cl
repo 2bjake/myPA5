@@ -13,6 +13,8 @@ class Bar inherits Foo {
 };
 *)
 
+class Baz inherits Bar {};
+
 class Foo {
   xb: Int <- x;
   x: Int <- 2;
@@ -29,9 +31,6 @@ class Bar inherits Foo {
   z2: Bool <- true;
   f(x: Int): Int { x };
 };
-
-class Baz inherits Bar {};
-
 
 class Main inherits IO {
   x: Foo <- new Foo;
