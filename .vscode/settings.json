@@ -18,7 +18,8 @@
         "ratio": "cpp",
         "tuple": "cpp",
         "utility": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "__config": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

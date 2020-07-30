@@ -22,6 +22,7 @@
 //
 //**************************************************************
 
+#include <algorithm>
 #include "cgen.h"
 #include "cgen_gc.h"
 
@@ -1182,15 +1183,52 @@ void loop_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
   emit_label_def(loop_end_label, s);
 }
 
+bool sort_by_tag_asc(Case a, Case b) {
+  int a_tag = type_to_tag_range[a->get_type_decl()].first;
+  int b_tag = type_to_tag_range[b->get_type_decl()].first;
+  return a_tag > b_tag;
+}
+
 void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-//   TODO
-//   int end_label = label_count++;
-//   expr->code(so, env, temp_offset, s);
-//   emit_bne(ACC, ZERO, label_count, s);
-//   // deal with void
-//   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
-//   emit_load_int(T1, inttable.add_int(expr->get_line_number()), s);
-//   emit_jal(_case_abort2->get_string(), s);
+  int end_label = label_count++;
+
+  // sort cases by tag value (highest to lowest)
+  std::vector<Case> ordered_cases;
+  for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
+    ordered_cases.push_back(cases->nth(i));
+  }
+  std::sort(ordered_cases.begin(), ordered_cases.end(), sort_by_tag_asc);
+
+  expr->code(so, env, temp_offset, s);
+  emit_load(T2, TAG_OFFSET, ACC, s);
+  emit_bne(ACC, ZERO, label_count, s);
+  // deal with void
+  emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
+  emit_load_int(T1, inttable.add_int(expr->get_line_number()), s);
+  emit_jal(_case_abort2->get_string(), s);
+
+  for(size_t i = 0; i < ordered_cases.size(); i++) {
+    emit_label_def(label_count++, s);
+    std::pair<int, int> range = type_to_tag_range[ordered_cases[i]->get_type_decl()];
+    emit_blti(T2, range.first, label_count, s);
+    emit_bgti(T2, range.second, label_count, s);
+
+    // store expr in temporary
+    RegisterOffset varLoc = RegisterOffset(temp_offset, FP);
+    emit_store(ACC, &varLoc, s);
+    env.enterscope();
+
+    ordered_cases[i]->get_expr()->code(so, env, temp_offset - 1, s);
+    env.exitscope();
+    emit_branch(end_label, s);
+  }
+
+  // handle no match error
+  emit_label_def(label_count++, s);
+  emit_jal(_case_abort->get_string(), s);
+
+  // end
+  emit_label_def(end_label, s);
 }
 
 void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
