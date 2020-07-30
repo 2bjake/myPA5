@@ -1102,7 +1102,7 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 
 //******************************************************************
 //
-//   TODO: Fill in the following methods to produce code for the
+//   Fill in the following methods to produce code for the
 //   appropriate expression.  You may add or remove parameters
 //   as you wish, but if you do, remember to change the parameters
 //   of the declarations in `cool-tree.h'  Sample code for
@@ -1305,13 +1305,11 @@ int assign_class::calc_temporaries() {
 }
 
 int static_dispatch_class::calc_temporaries() {
-  // TODO
-  return 0;
+  return 0; // TODO
 }
 
 int dispatch_class::calc_temporaries() {
-  // TODO
-  return 0;
+  return 0; // TODO
 }
 
 int cond_class::calc_temporaries() {
@@ -1323,8 +1321,7 @@ int loop_class::calc_temporaries() {
 }
 
 int typcase_class::calc_temporaries() {
-  // TODO
-  return 0;
+  return 0; // TODO
 }
 
 int block_class::calc_temporaries() {
