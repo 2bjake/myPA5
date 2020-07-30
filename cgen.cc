@@ -618,7 +618,7 @@ void code_class_init(ostream &s, CgenNodeP node, int classtag)
   // initialize attributes
   for (size_t i = 0; i < attrs.size(); i++) {
     if (attrs[i]->init->get_type() != NULL) {
-      attrs[i]->init->code(node, env, s);
+      attrs[i]->init->code(node, env, FIRST_TEMPORARY_OFFSET, s);
       RegisterOffset* loc = env.lookup(attrs[i]->name);
       emit_store(ACC, loc, s);
     }
@@ -988,9 +988,9 @@ void CgenClassTable::code_methods() {
     emit_method_entry(temporaries_count, str);
 
     SymbolTable<Symbol, RegisterOffset> env = methods[i].first->make_environment();
-    // TOOD: add the parameter locations to the symbol_location_table (offset from FP)
+    // TODO: add the parameter locations to the symbol_location_table (starting at FIRST_ARG_OFFSET from FP)
 
-    method->expr->code(methods[i].first, env, str);
+    method->expr->code(methods[i].first, env, FIRST_TEMPORARY_OFFSET, str);
     emit_method_exit(method->formals->len(), temporaries_count, str);
   }
 }
@@ -1110,57 +1110,57 @@ CgenNode::CgenNode(Class_ nd, Basicness bstatus, CgenClassTableP ct) :
 //
 //*****************************************************************
 
-void assign_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  expr->code(so, env, s);
+void assign_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
+  expr->code(so, env, temp_offset, s);
   RegisterOffset *loc = env.lookup(name);
   emit_store(ACC, loc, s);
 }
 
-void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   //TODO
 }
 
-void dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   //TODO
 }
 
-void cond_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void cond_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   int else_label = label_count++;
   int fi_label = label_count++;
-  this->pred->code(so, env, s);
+  this->pred->code(so, env, temp_offset, s);
   emit_fetch_bool(ACC, ACC, s);
   emit_beqz(ACC, else_label, s);
-  then_exp->code(so, env, s);
+  then_exp->code(so, env, temp_offset, s);
   emit_branch(fi_label, s);
   emit_label_def(else_label, s);
-  else_exp->code(so, env, s);
+  else_exp->code(so, env, temp_offset, s);
   emit_label_def(fi_label, s);
 }
 
-void loop_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void loop_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   int loop_begin_label = label_count++;
   int loop_end_label = label_count++;
   emit_label_def(loop_begin_label, s);
-  pred->code(so, env, s);
+  pred->code(so, env, temp_offset, s);
   emit_fetch_bool(ACC, ACC, s);
   emit_beqz(ACC, loop_end_label, s);
-  body->code(so, env, s);
+  body->code(so, env, temp_offset, s);
   emit_branch(loop_begin_label, s);
   emit_move(ACC, ZERO, s);
   emit_label_def(loop_end_label, s);
 }
 
-void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   //TODO
 }
 
-void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   for(int i = body->first(); body->more(i); i = body->next(i)) {
-    body->nth(i)->code(so, env, s);
+    body->nth(i)->code(so, env, temp_offset, s);
   }
 }
 
-void let_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void let_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   // TODO: this code is wrong because it uses the stack for the let variable
   // Need to add in temporaries calculation and memory allocation in the AR
   // and store the let variable there
@@ -1181,34 +1181,34 @@ void let_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ost
 }
 
 #define code_arith(op) \
-e1->code(so, env, s); \
-emit_fetch_int(ACC, ACC, s); \
-emit_push(ACC, s); \
-e2->code(so, env, s); \
+e1->code(so, env, temp_offset, s); \
+emit_store(ACC, temp_offset, FP, s); \
+e2->code(so, env, temp_offset - 1, s); \
 s << JAL; emit_method_ref(Object, ::copy, s); s << endl; \
+emit_load(T1, temp_offset, FP, s); \
+emit_fetch_int(T1, T1, s); \
 emit_fetch_int(T2, ACC, s); \
-emit_pop(T1, s); \
 op(T1, T1, T2, s); \
 emit_store_int(T1, ACC, s);
 
-void plus_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void plus_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_arith(emit_add)
 }
 
-void sub_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void sub_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_arith(emit_sub)
 }
 
-void mul_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void mul_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_arith(emit_mul)
 }
 
-void divide_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void divide_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_arith(emit_div) //TODO: handle divide by zero?
 }
 
-void neg_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  e1->code(so, env, s);
+void neg_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
+  e1->code(so, env, temp_offset, s);
   s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
   emit_fetch_int(T1, ACC, s);
   emit_neg(T1, T1, s);
@@ -1216,32 +1216,32 @@ void neg_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ost
 }
 
 #define code_compare(op) \
-e1->code(so, env, s); \
-emit_fetch_int(ACC, ACC, s); \
-emit_push(ACC, s); \
-e2->code(so, env, s); \
+e1->code(so, env, temp_offset, s); \
+emit_store(ACC, temp_offset, FP, s); \
+e2->code(so, env, temp_offset - 1, s); \
 s << JAL; emit_method_ref(Object, ::copy, s); s << endl; \
+emit_load(T1, temp_offset, FP, s); \
+emit_fetch_int(T1, T1, s); \
 emit_fetch_int(T2, ACC, s); \
-emit_pop(T1, s); \
 emit_load_bool(ACC, truebool, s); \
 op(T1, T2, label_count, s); \
 emit_load_bool(ACC, falsebool, s); \
 emit_label_def(label_count++, s);
 
-void lt_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void lt_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_compare(emit_blt)
 }
 
-void eq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void eq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_compare(emit_beq)
 }
 
-void leq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void leq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_compare(emit_bleq)
 }
 
-void comp_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  e1->code(so, env, s);
+void comp_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
+  e1->code(so, env, temp_offset, s);
   emit_fetch_bool(T1, ACC, s);
   emit_load_bool(ACC, truebool, s);
   emit_beqz(T1, label_count, s);
@@ -1249,7 +1249,7 @@ void comp_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, os
   emit_label_def(label_count++, s);
 }
 
-void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s)
+void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
 {
   //
   // Need to be sure we have an IntEntry *, not an arbitrary Symbol
@@ -1257,17 +1257,17 @@ void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > en
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s)
+void string_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
 {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s)
+void bool_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
 {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
-void new__class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void new__class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   Symbol name;
   if (type_name == SELF_TYPE) {
     name = so->get_name();
@@ -1279,8 +1279,8 @@ void new__class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, os
   s << JAL; emit_init_ref(name, s); s << endl;
 }
 
-void isvoid_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  e1->code(so, env, s);
+void isvoid_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
+  e1->code(so, env, temp_offset, s);
   emit_move(T1, ACC, s);
   emit_load_bool(ACC, truebool, s);
   emit_beqz(T1, label_count, s);
@@ -1288,11 +1288,11 @@ void isvoid_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, 
   emit_label_def(label_count++, s);
 }
 
-void no_expr_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void no_expr_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   //noop
 }
 
-void object_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
+void object_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   if (name == self) {
     emit_move(ACC, SELF, s);
   } else {
