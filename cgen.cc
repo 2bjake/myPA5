@@ -1161,23 +1161,20 @@ void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, i
 }
 
 void let_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  // TODO: this code is wrong because it uses the stack for the let variable
-  // Need to add in temporaries calculation and memory allocation in the AR
-  // and store the let variable there
-  //
-  // if (init->get_type() != NULL) {
-  //   init->code(so, env, s);
-  // } else if (type_decl == Int || type_decl == Bool || type_decl == Str) {
-  //   s << LA << ACC << " "; code_default_init(s, type_decl); s << endl;
-  // } else {
-  //   emit_move(ACC, ZERO, s);
-  // }
-  // emit_push(ACC, s);
-  // env.enterscope();
-  // env.addid(identifier, new RegisterOffset(1, SP));  // TODO : problem, this location becomes wrong if more pushed on stack....
-  // body->code(so, env, s);
-  // emit_addiu(SP, SP, 4, s);
-  // env.exitscope();
+  if (init->get_type() != NULL) {
+    init->code(so, env, temp_offset, s);
+  } else if (type_decl == Int || type_decl == Bool || type_decl == Str) {
+    s << LA << ACC << " "; code_default_init(s, type_decl); s << endl;
+  } else {
+    emit_move(ACC, ZERO, s);
+  }
+
+  RegisterOffset varLoc = RegisterOffset(temp_offset, FP);
+  emit_store(ACC, &varLoc, s);
+  env.enterscope();
+  env.addid(identifier, &varLoc);
+  body->code(so, env, temp_offset - 1, s);
+  env.exitscope();
 }
 
 #define code_arith(op) \

@@ -37,4 +37,3 @@ class Main inherits IO {
   y: Int <- 2;
   main():Int { let z: Int <- 2 in y + z };
 };
-
