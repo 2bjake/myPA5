@@ -123,6 +123,22 @@ static char *gc_collect_names[] =
 // increment after using
 int label_count = 0;
 
+// mapping of type name to tag range for the type's hierarchy
+std::map<Symbol, std::pair<int, int> > type_to_tag_range;
+
+std::pair<int, int> fill_tag_range_map(CgenNodeP node) {
+  int low = node->get_tag();
+  int high = low;
+
+  for (List<CgenNode> *children = node->get_children(); children != NULL; children = children->tl()) {
+    int child_high = fill_tag_range_map(children->hd()).second;
+    high = std::max(high, child_high);
+  }
+  std::pair<int, int> range = std::make_pair(low, high);
+  type_to_tag_range[node->get_name()] = range;
+  return range;
+}
+
 //  BoolConst is a class that implements code generation for operations
 //  on the two booleans, which are given global names here.
 BoolConst falsebool(FALSE);
@@ -778,6 +794,7 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
    install_classes(classes);
    build_inheritance_tree();
    order_classes(root());
+   fill_tag_range_map(root());
 
    std::vector<std::pair<Symbol, Symbol> > empty_table;
    std::map<Symbol, int> empty_pos;
