@@ -33,7 +33,8 @@ class Bar inherits Foo {
 
 
 class Main inherits IO {
-  x: Int;
-  main():Int { x <- 2 };
+  x: Foo <- new Foo;
+  y: Int <- 2;
+  main():Int { let z: Int <- 2 in y + z };
 };
 

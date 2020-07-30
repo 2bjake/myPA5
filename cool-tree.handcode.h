@@ -106,12 +106,14 @@ Symbol type;                                 \
 Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
 virtual void code(CgenNode*, SymbolTable<Symbol, RegisterOffset>, ostream&) = 0; \
+virtual int calc_temporaries() = 0; \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
 Expression_class() { type = (Symbol) NULL; }
 
 #define Expression_SHARED_EXTRAS           \
 void code(CgenNode*, SymbolTable<Symbol, RegisterOffset>, ostream&); 			   \
+int calc_temporaries(); \
 void dump_with_types(ostream&,int);
 
 

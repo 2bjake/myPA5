@@ -386,8 +386,8 @@ static void emit_gc_check(char *source, ostream &s)
   s << JAL << "_gc_check" << endl;
 }
 
-static void emit_method_entry(ostream &s) {
-  emit_addiu(SP, SP, -12, s); // make space on stack for frame
+static void emit_method_entry(int temporaries_count, ostream &s) {
+  emit_addiu(SP, SP,  (3 + temporaries_count) * -4, s); // make space on stack for frame
   emit_store(FP, 3, SP, s); // save caller's frame pointer
   emit_store(SELF, 2, SP, s); // save caller's self
   emit_store(RA, 1, SP, s); // save return address
@@ -398,14 +398,13 @@ static void emit_method_entry(ostream &s) {
 
 // restores caller's registers, tears down frame, and returns
 // Note: this code does not set up the ACC return value
-static void emit_method_exit(int arg_count, ostream &s) {
+static void emit_method_exit(int arg_count, int temporaries_count, ostream &s) {
   emit_load(FP, 3, SP, s); // restore caller's frame pointer
   emit_load(SELF, 2, SP, s); // restore caller's self
   emit_load(RA, 1, SP, s); // retstore return address
-  emit_addiu(SP, SP, 12 + (arg_count * 4), s); // pop stack space for frame and args
+  emit_addiu(SP, SP, (3 + temporaries_count + arg_count) * 4, s); // pop stack space for frame, temporaries and args
   emit_return(s); // return
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -557,8 +556,7 @@ void BoolConst::code_def(ostream& s, int boolclasstag)
       << WORD << val << endl; // value (0 or 1)
 }
 
-void code_default_attr(ostream &s, Symbol type) {
-  s << WORD;
+void code_default_init(ostream &s, Symbol type) {
   if (type == Str) {
     stringtable.add_string("")->code_ref(s);
   } else if (type == Int) {
@@ -568,7 +566,10 @@ void code_default_attr(ostream &s, Symbol type) {
   } else {
     s << 0;
   }
-  s << endl;
+}
+
+void code_default_attr(ostream &s, Symbol type) {
+  s << WORD; code_default_init(s, type); s << endl;
 }
 
 void code_proto_class(ostream &s, Symbol name, std::vector<attr_class*> attrs, int classtag)
@@ -588,13 +589,22 @@ void code_proto_class(ostream &s, Symbol name, std::vector<attr_class*> attrs, i
 
 void code_class_init(ostream &s, CgenNodeP node, int classtag)
 {
+  // method init label
   emit_init_ref(node->get_name(), s); s << LABEL;
   if (node->basic()) {
     emit_return(s);
     return;
   }
 
-  emit_method_entry(s);
+  // calculate necessary temporaries count
+  int temporaries_count = 0;
+  std::vector<attr_class*> attrs = node->get_declared_attrs();
+  for (size_t i = 0; i < attrs.size(); i++) {
+    temporaries_count = std::max(temporaries_count, attrs[i]->init->calc_temporaries());
+  }
+
+  // activation record setup
+  emit_method_entry(temporaries_count, s);
   if (!node->get_parentnd()->basic()) {
     s << JAL << node->parent << CLASSINIT_SUFFIX << endl;
   }
@@ -602,7 +612,6 @@ void code_class_init(ostream &s, CgenNodeP node, int classtag)
   SymbolTable<Symbol, RegisterOffset> env = node->make_environment();
 
   // initialize attributes
-  std::vector<attr_class*> attrs = node->get_declared_attrs();
   for (size_t i = 0; i < attrs.size(); i++) {
     if (attrs[i]->init->get_type() != NULL) {
       attrs[i]->init->code(node, env, s);
@@ -610,8 +619,10 @@ void code_class_init(ostream &s, CgenNodeP node, int classtag)
       emit_store(ACC, loc, s);
     }
   }
+
+  // teardown and return
   emit_move(ACC, SELF, s);
-  emit_method_exit(0, s);
+  emit_method_exit(0, temporaries_count, s);
 }
 
 void code_class_name_table(ostream &s, std::vector<CgenNodeP> nodes)
@@ -969,13 +980,14 @@ void CgenClassTable::code_methods() {
   for (size_t i = 0; i < methods.size(); i++) {
     method_class* method = methods[i].second;
     emit_method_ref(methods[i].first->get_name(), method->name, str); str << LABEL;
-    emit_method_entry(str);
+    int temporaries_count = method->expr->calc_temporaries();
+    emit_method_entry(temporaries_count, str);
 
     SymbolTable<Symbol, RegisterOffset> env = methods[i].first->make_environment();
     // TOOD: add the parameter locations to the symbol_location_table (offset from FP)
 
     method->expr->code(methods[i].first, env, str);
-    emit_method_exit(method->formals->len(), str);
+    emit_method_exit(method->formals->len(), temporaries_count, str);
   }
 }
 
@@ -1145,7 +1157,23 @@ void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, o
 }
 
 void let_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, ostream &s) {
-  //TODO
+  // TODO: this code is wrong because it uses the stack for the let variable
+  // Need to add in temporaries calculation and memory allocation in the AR
+  // and store the let variable there
+  //
+  // if (init->get_type() != NULL) {
+  //   init->code(so, env, s);
+  // } else if (type_decl == Int || type_decl == Bool || type_decl == Str) {
+  //   s << LA << ACC << " "; code_default_init(s, type_decl); s << endl;
+  // } else {
+  //   emit_move(ACC, ZERO, s);
+  // }
+  // emit_push(ACC, s);
+  // env.enterscope();
+  // env.addid(identifier, new RegisterOffset(1, SP));  // TODO : problem, this location becomes wrong if more pushed on stack....
+  // body->code(so, env, s);
+  // emit_addiu(SP, SP, 4, s);
+  // env.exitscope();
 }
 
 #define code_arith(op) \
@@ -1267,4 +1295,109 @@ void object_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, 
     RegisterOffset *loc = env.lookup(name);
     emit_load(ACC, loc, s);
   }
+}
+
+// temporaries calculations
+
+int assign_class::calc_temporaries() {
+  return expr->calc_temporaries();
+}
+
+int static_dispatch_class::calc_temporaries() {
+  // TODO
+  return 0;
+}
+
+int dispatch_class::calc_temporaries() {
+  // TODO
+  return 0;
+}
+
+int cond_class::calc_temporaries() {
+  return std::max(pred->calc_temporaries(), std::max(then_exp->calc_temporaries(), else_exp->calc_temporaries()));
+}
+
+int loop_class::calc_temporaries() {
+  return std::max(pred->calc_temporaries(), body->calc_temporaries());
+}
+
+int typcase_class::calc_temporaries() {
+  // TODO
+  return 0;
+}
+
+int block_class::calc_temporaries() {
+  int temps = 0;
+  for (int i = body->first(); body->more(i); i = body->next(i)) {
+    temps = std::max(temps, body->nth(i)->calc_temporaries());
+  }
+  return temps;
+}
+
+int let_class::calc_temporaries() {
+  return std::max(init->calc_temporaries(), 1 + body->calc_temporaries());
+}
+
+int plus_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int sub_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int mul_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int divide_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int neg_class::calc_temporaries() {
+  return e1->calc_temporaries();
+}
+
+int lt_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int eq_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int leq_class::calc_temporaries() {
+  return std::max(e1->calc_temporaries(), 1 + e2->calc_temporaries());
+}
+
+int comp_class::calc_temporaries() {
+  return e1->calc_temporaries();
+}
+
+int int_const_class::calc_temporaries() {
+  return 0;
+}
+
+int string_const_class::calc_temporaries() {
+  return 0;
+}
+
+int bool_const_class::calc_temporaries() {
+  return 0;
+}
+
+int new__class::calc_temporaries() {
+  return 0;
+}
+
+int isvoid_class::calc_temporaries() {
+  return e1->calc_temporaries();
+}
+
+int no_expr_class::calc_temporaries() {
+  return 0;
+}
+
+int object_class::calc_temporaries() {
+  return 0;
 }
