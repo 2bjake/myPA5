@@ -32,6 +32,11 @@ class Bar inherits Foo {
   f(x: Int): Int { x };
 };
 
+class A {};
+class B inherits A {};
+class C inherits B {};
+class D inherits B {};
+
 class Main inherits IO {
   x: Foo <- new Foo;
   y: Int <- 2;
@@ -42,6 +47,10 @@ class Main inherits IO {
       s: String => 3;
       f: Foo => 1;
       b: Bar => 2;
+      a: A => 2;
+      bb: B => 2;
+      c: C => 2;
+      d: D => 2;
     esac
   };
 };

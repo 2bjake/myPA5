@@ -69,7 +69,10 @@ Symbol
        str_field,
        substr,
        type_name,
-       val;
+       val,
+       _case_abort,
+       _case_abort2,
+       _dispatch_abort;
 //
 // Initializing the predefined symbols.
 //
@@ -103,6 +106,11 @@ static void initialize_constants(void)
   substr      = idtable.add_string("substr");
   type_name   = idtable.add_string("type_name");
   val         = idtable.add_string("_val");
+
+  // error labels
+  _case_abort = idtable.add_string("_case_abort");
+  _case_abort2 = idtable.add_string("_case_abort2");
+  _dispatch_abort = idtable.add_string("_dispatch_abort");
 }
 
 static char *gc_init_names[] =
@@ -782,8 +790,6 @@ CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 
 void CgenClassTable::install_basic_classes()
 {
-  int tag_num = 0;
-
   // The tree package uses these globals to annotate the classes built below.
   //curr_lineno  = 0;
   Symbol filename = stringtable.add_string("<basic class>");
@@ -826,8 +832,7 @@ void CgenClassTable::install_basic_classes()
 	   filename),
     Basic,this);
   install_class(object_node);
-  objectclasstag = tag_num++;
-  ordered_nodes.push_back(object_node);
+  objectclasstag = add_ordered_node(object_node);
 
   //
   // The IO class inherits from Object. Its methods are
@@ -851,8 +856,7 @@ void CgenClassTable::install_basic_classes()
 	   filename),
     Basic,this);
   install_class(io_node);
-  ioclasstag = tag_num++;
-  ordered_nodes.push_back(io_node);
+  ioclasstag = add_ordered_node(io_node);
 
 //
 // The Int class has no methods and only a single attribute, the
@@ -865,8 +869,7 @@ CgenNodeP int_node = new CgenNode(
 	    filename),
      Basic,this);
 install_class(int_node);
-intclasstag = tag_num++;
-ordered_nodes.push_back(int_node);
+intclasstag = add_ordered_node(int_node);
 
   //
   // Bool also has only the "val" slot.
@@ -875,8 +878,7 @@ ordered_nodes.push_back(int_node);
       class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename),
       Basic,this);
   install_class(bool_node);
-  boolclasstag = tag_num++;
-  ordered_nodes.push_back(bool_node);
+  boolclasstag = add_ordered_node(bool_node);
 
   //
   // The class Str has a number of slots and operations:
@@ -908,10 +910,9 @@ ordered_nodes.push_back(int_node);
 	     filename),
         Basic,this);
   install_class(string_node);
-  stringclasstag = tag_num++;
-  ordered_nodes.push_back(string_node);
+  stringclasstag = add_ordered_node(string_node);
 
-  customclasstag_start = tag_num;
+  customclasstag_start = stringclasstag + 1;
 }
 
 // CgenClassTable::install_class
@@ -936,9 +937,6 @@ void CgenClassTable::install_class(CgenNodeP nd)
 
 void CgenClassTable::install_classes(Classes cs)
 {
-  // TODO: consider iterating through classes by hierarchy
-  // to ensure super classes have lower tag values than
-  // sub classes.
   for(int i = cs->first(); cs->more(i); i = cs->next(i)) {
     CgenNodeP node = new CgenNode(cs->nth(i),NotBasic,this);
     install_class(node);
@@ -957,7 +955,7 @@ void CgenClassTable::build_inheritance_tree()
 
 void CgenClassTable::order_classes(CgenNodeP nd) {
   if (!nd->basic()) {
-    ordered_nodes.push_back(nd);
+    add_ordered_node(nd);
   }
 
   for (List<CgenNode> *children = nd->get_children(); children != NULL; children = children->tl()) {
@@ -1052,7 +1050,11 @@ void CgenNode::set_parentnd(CgenNodeP p)
   parentnd = p;
 }
 
-
+int CgenClassTable::add_ordered_node(CgenNodeP node) {
+  node->set_tag(ordered_nodes.size());
+  ordered_nodes.push_back(node);
+  return node->get_tag();
+}
 
 void CgenClassTable::code()
 {
@@ -1164,7 +1166,14 @@ void loop_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
 }
 
 void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  // TODO
+//   TODO
+//   int end_label = label_count++;
+//   expr->code(so, env, temp_offset, s);
+//   emit_bne(ACC, ZERO, label_count, s);
+//   // deal with void
+//   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
+//   emit_load_int(T1, inttable.add_int(expr->get_line_number()), s);
+//   emit_jal(_case_abort2->get_string(), s);
 }
 
 void block_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
@@ -1214,7 +1223,7 @@ void mul_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int
 }
 
 void divide_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  code_arith(emit_div) //TODO: handle divide by zero?
+  code_arith(emit_div)
 }
 
 void neg_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {

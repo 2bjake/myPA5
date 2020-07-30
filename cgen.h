@@ -53,6 +53,7 @@ private:
    void order_classes(CgenNodeP nd);
    void set_relations(CgenNodeP nd);
    void process_features(CgenNodeP node, std::vector<attr_class*> attrs, std::vector<std::pair<Symbol, Symbol> > dispatch_tbl, std::map<Symbol, int> method_pos);
+   int add_ordered_node(CgenNodeP node);
 public:
    CgenClassTable(Classes, ostream& str);
    void code();
@@ -69,6 +70,7 @@ private:
    std::vector<attr_class*> inherited_attrs;
    std::vector<attr_class*> declared_attrs;
    std::map<Symbol, int> attr_pos;
+   int tag;
 
 public:
    CgenNode(Class_ c,
@@ -80,6 +82,8 @@ public:
    void set_parentnd(CgenNodeP p);
    CgenNodeP get_parentnd() { return parentnd; }
    int basic() { return (basic_status == Basic); }
+   int get_tag() { return tag; }
+   void set_tag(int tag) { this->tag = tag; }
 
    void set_dispatch_table(std::vector<std::pair<Symbol, Symbol> > dispatch_table) { this->dispatch_table = dispatch_table; }
    std::vector<std::pair<Symbol, Symbol> > get_dispatch_table() { return dispatch_table; }
