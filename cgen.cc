@@ -1034,9 +1034,10 @@ void CgenClassTable::code_methods() {
     // get class env & add formals to it
     SymbolTable<Symbol, RegisterOffset> env = methods[i].first->make_environment();
     Formals formals = method->formals;
+    int first_arg_offset = LAST_ARG_OFFSET + formals->len() - 1;
     for (int j = formals->first(); formals->more(j); j = formals->next(j)) {
       Symbol name = formals->nth(j)->get_name();
-      RegisterOffset *offset = new RegisterOffset(j + FIRST_ARG_OFFSET, FP);
+      RegisterOffset *offset = new RegisterOffset(first_arg_offset - j, FP);
       env.addid(name, offset);
     }
 
@@ -1174,9 +1175,10 @@ void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffse
   int arg_count = this->actual->len();
   if (arg_count > 0) {
     emit_addiu(SP, SP, -4 * arg_count, s);
+    int arg_count = actual->len();
     for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
       actual->nth(i)->code(so, env, temp_offset, s);
-      emit_store(ACC, i + 1, SP, s);
+      emit_store(ACC, arg_count - i, SP, s);
     }
   }
   expr->code(so, env, temp_offset, s);
@@ -1204,9 +1206,10 @@ void dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env
   int arg_count = this->actual->len();
   if (arg_count > 0) {
     emit_addiu(SP, SP, -4 * arg_count, s);
+    int arg_count = actual->len();
     for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
       actual->nth(i)->code(so, env, temp_offset, s);
-      emit_store(ACC, i + 1, SP, s);
+      emit_store(ACC, arg_count - i, SP, s);
     }
   }
   expr->code(so, env, temp_offset, s);

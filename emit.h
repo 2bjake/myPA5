@@ -65,7 +65,7 @@
 // information about activation record
 // (offsets from frame pointer)
 //
-#define FIRST_ARG_OFFSET 1
+#define LAST_ARG_OFFSET 1
 #define CALLER_FP_OFFSET 0
 #define CALLER_SELF_OFFSET -1
 #define RA_OFFSET -2
