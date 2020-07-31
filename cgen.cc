@@ -1274,7 +1274,6 @@ void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env,
   std::sort(ordered_cases.begin(), ordered_cases.end(), sort_by_tag_asc);
 
   expr->code(so, env, temp_offset, s);
-  emit_load(T2, TAG_OFFSET, ACC, s);
   emit_bne(ACC, ZERO, label_count, s);
   // deal with void
   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
@@ -1283,6 +1282,10 @@ void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env,
 
   for(size_t i = 0; i < ordered_cases.size(); i++) {
     emit_label_def(label_count++, s);
+    if (i == 0) {
+      emit_load(T2, TAG_OFFSET, ACC, s);
+    }
+
     std::pair<int, int> range = type_to_tag_range[ordered_cases[i]->get_type_decl()];
     emit_blti(T2, range.first, label_count, s);
     emit_bgti(T2, range.second, label_count, s);
