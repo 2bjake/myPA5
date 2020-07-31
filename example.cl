@@ -40,6 +40,7 @@ class D inherits B {};
 class Main inherits IO {
   x: Foo <- new Foo;
   y: Int <- 2;
+  b: Bool <- 2 = 2;
   z: Baz <- new Baz;
   main():Int {
     case z of

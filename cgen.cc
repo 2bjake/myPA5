@@ -71,6 +71,7 @@ Symbol
        substr,
        type_name,
        val,
+       equality_test,
        _case_abort,
        _case_abort2,
        _dispatch_abort;
@@ -107,6 +108,8 @@ static void initialize_constants(void)
   substr      = idtable.add_string("substr");
   type_name   = idtable.add_string("type_name");
   val         = idtable.add_string("_val");
+
+  equality_test = idtable.add_string("equality_test");
 
   // error labels
   _case_abort = idtable.add_string("_case_abort");
@@ -1293,7 +1296,6 @@ void neg_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int
 e1->code(so, env, temp_offset, s); \
 emit_store(ACC, temp_offset, FP, s); \
 e2->code(so, env, temp_offset - 1, s); \
-s << JAL; emit_method_ref(Object, ::copy, s); s << endl; \
 emit_load(T1, temp_offset, FP, s); \
 emit_fetch_int(T1, T1, s); \
 emit_fetch_int(T2, ACC, s); \
@@ -1307,7 +1309,17 @@ void lt_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int 
 }
 
 void eq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  code_compare(emit_beq) // TODO: equal needs to handle non-Ints
+  e1->code(so, env, temp_offset, s);
+  emit_store(ACC, temp_offset, FP, s);
+  e2->code(so, env, temp_offset - 1, s);
+
+  emit_load(T1, temp_offset, FP, s);
+  emit_move(T2, ACC, s);
+  emit_load_bool(ACC, truebool, s);
+  emit_beq(T1, T2, label_count, s);
+  emit_load_bool(A1, falsebool, s);
+  emit_jal(equality_test->get_string(), s);
+  emit_label_def(label_count++, s);
 }
 
 void leq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
