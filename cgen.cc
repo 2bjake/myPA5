@@ -1335,20 +1335,15 @@ void comp_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
   emit_label_def(label_count++, s);
 }
 
-void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
-{
-  // TODO: Need to be sure we have an IntEntry *, not an arbitrary Symbol
+void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   emit_load_int(ACC,inttable.lookup_string(token->get_string()),s);
 }
 
-void string_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
-{
-  // TODO: Need to be sure we have an StringEntry *, not an arbitrary Symbol?
+void string_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   emit_load_string(ACC,stringtable.lookup_string(token->get_string()),s);
 }
 
-void bool_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s)
-{
+void bool_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   emit_load_bool(ACC, BoolConst(val), s);
 }
 
