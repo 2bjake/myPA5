@@ -1296,6 +1296,7 @@ void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env,
     RegisterOffset varLoc = RegisterOffset(temp_offset, FP);
     emit_store(ACC, &varLoc, s);
     env.enterscope();
+    env.addid(ordered_cases[i]->get_name(), &varLoc);
 
     ordered_cases[i]->get_expr()->code(so, env, temp_offset - 1, s);
     env.exitscope();
