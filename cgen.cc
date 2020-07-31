@@ -624,7 +624,8 @@ void code_proto_class(ostream &s, Symbol name, std::vector<attr_class*> attrs, i
       << WORD; emit_disptable_ref(name, s); s << endl;
 
   for (size_t i = 0; i < attrs.size(); i++) {
-    code_default_attr(s, attrs[i]->type_decl);
+    Symbol attr_type = attrs[i]->type_decl;
+    code_default_attr(s, attr_type);
   }
 }
 
@@ -1195,7 +1196,6 @@ void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffse
   }
 
   int offset = method_to_offset[std::make_pair(dispatch_type, name)];
-  std::cout << dispatch_type << " " << name << " " << offset << endl;
   emit_load(T1, offset, T1, s);
   emit_jalr(T1, s);
 }
@@ -1226,7 +1226,6 @@ void dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env
   }
 
   int offset = method_to_offset[std::make_pair(dispatch_type, name)];
-  std::cout << dispatch_type << " " << name << " " << offset << endl;
   emit_load(T1, offset, T1, s);
   emit_jalr(T1, s);
 }
@@ -1428,8 +1427,13 @@ void new__class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
   } else {
     name = type_name;
   }
-  s << LA << ACC << " "; emit_protobj_ref(name, s); s << endl;
-  s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
+
+  if (name == Bool) {
+    emit_load_bool(ACC, falsebool, s);
+  } else {
+    s << LA << ACC << " "; emit_protobj_ref(name, s); s << endl;
+    s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
+  }
   s << JAL; emit_init_ref(name, s); s << endl;
 }
 
