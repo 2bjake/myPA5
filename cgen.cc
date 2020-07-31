@@ -1182,13 +1182,14 @@ void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffse
     }
   }
   expr->code(so, env, temp_offset, s);
-  emit_bne(ACC, ZERO, label_count, s);
+  int not_void_label = label_count++;
+  emit_bne(ACC, ZERO, not_void_label, s);
   // deal with void
   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
   emit_load_imm(T1, 1, s);
   emit_jal(_dispatch_abort->get_string(), s);
 
-  emit_label_def(label_count++, s);
+  emit_label_def(not_void_label, s);
   // load dispatch table
   emit_load(T1, DISPTABLE_OFFSET, ACC, s);
 
@@ -1213,13 +1214,14 @@ void dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env
     }
   }
   expr->code(so, env, temp_offset, s);
-  emit_bne(ACC, ZERO, label_count, s);
+  int not_void_label = label_count++;
+  emit_bne(ACC, ZERO, not_void_label, s);
   // deal with void
   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
   emit_load_imm(T1, 1, s);
   emit_jal(_dispatch_abort->get_string(), s);
 
-  emit_label_def(label_count++, s);
+  emit_label_def(not_void_label, s);
   // load dispatch table
   emit_load(T1, DISPTABLE_OFFSET, ACC, s);
 
@@ -1267,6 +1269,9 @@ bool sort_by_tag_asc(Case a, Case b) {
 
 void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   int end_label = label_count++;
+  int case_label = label_count;
+  label_count += cases->len();
+  int no_match_label = label_count++;
 
   // sort cases by tag value (highest to lowest)
   std::vector<Case> ordered_cases;
@@ -1276,21 +1281,21 @@ void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env,
   std::sort(ordered_cases.begin(), ordered_cases.end(), sort_by_tag_asc);
 
   expr->code(so, env, temp_offset, s);
-  emit_bne(ACC, ZERO, label_count, s);
+  emit_bne(ACC, ZERO, case_label, s);
   // deal with void
   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
   emit_load_imm(T1, 1, s);
   emit_jal(_case_abort2->get_string(), s);
 
   for(size_t i = 0; i < ordered_cases.size(); i++) {
-    emit_label_def(label_count++, s);
+    emit_label_def(case_label++, s);
     if (i == 0) {
       emit_load(T2, TAG_OFFSET, ACC, s);
     }
 
     std::pair<int, int> range = type_to_tag_range[ordered_cases[i]->get_type_decl()];
-    emit_blti(T2, range.first, label_count, s);
-    emit_bgti(T2, range.second, label_count, s);
+    emit_blti(T2, range.first, case_label, s);
+    emit_bgti(T2, range.second, case_label, s);
 
     // store expr in temporary
     RegisterOffset varLoc = RegisterOffset(temp_offset, FP);
@@ -1304,7 +1309,7 @@ void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env,
   }
 
   // handle no match error
-  emit_label_def(label_count++, s);
+  emit_label_def(no_match_label, s);
   emit_jal(_case_abort->get_string(), s);
 
   // end
@@ -1377,9 +1382,10 @@ emit_load(T1, temp_offset, FP, s); \
 emit_fetch_int(T1, T1, s); \
 emit_fetch_int(T2, ACC, s); \
 emit_load_bool(ACC, truebool, s); \
-op(T1, T2, label_count, s); \
+int true_label = label_count++; \
+op(T1, T2, true_label, s); \
 emit_load_bool(ACC, falsebool, s); \
-emit_label_def(label_count++, s);
+emit_label_def(true_label, s);
 
 void lt_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
   code_compare(emit_blt)
@@ -1393,10 +1399,11 @@ void eq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int 
   emit_load(T1, temp_offset, FP, s);
   emit_move(T2, ACC, s);
   emit_load_bool(ACC, truebool, s);
-  emit_beq(T1, T2, label_count, s);
+  int true_label = label_count++;
+  emit_beq(T1, T2, true_label, s);
   emit_load_bool(A1, falsebool, s);
   emit_jal(equality_test->get_string(), s);
-  emit_label_def(label_count++, s);
+  emit_label_def(true_label, s);
 }
 
 void leq_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
@@ -1407,9 +1414,10 @@ void comp_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, in
   e1->code(so, env, temp_offset, s);
   emit_fetch_bool(T1, ACC, s);
   emit_load_bool(ACC, truebool, s);
-  emit_beqz(T1, label_count, s);
+  int label = label_count++;
+  emit_beqz(T1, label, s);
   emit_load_bool(ACC, falsebool, s);
-  emit_label_def(label_count++, s);
+  emit_label_def(label, s);
 }
 
 void int_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
@@ -1445,9 +1453,10 @@ void isvoid_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, 
   e1->code(so, env, temp_offset, s);
   emit_move(T1, ACC, s);
   emit_load_bool(ACC, truebool, s);
-  emit_beqz(T1, label_count, s);
+  int label = label_count++;
+  emit_beqz(T1, label, s);
   emit_load_bool(ACC, falsebool, s);
-  emit_label_def(label_count++, s);
+  emit_label_def(label, s);
 }
 
 void no_expr_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
