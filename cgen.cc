@@ -143,6 +143,15 @@ std::pair<int, int> fill_tag_range_map(CgenNodeP node) {
   return range;
 }
 
+// mapping of pair<class_symbol, method_symbol> to dispatch table offset
+std::map<std::pair<Symbol, Symbol>, int> method_to_offset;
+void fill_method_offset_map(CgenNodeP node) {
+  std::vector<std::pair<Symbol, Symbol> > tbl = node->get_dispatch_table();
+  for (size_t i = 0; i < tbl.size(); i++) {
+    method_to_offset[std::make_pair(node->name, tbl[i].second)] = i;
+  }
+}
+
 //  BoolConst is a class that implements code generation for operations
 //  on the two booleans, which are given global names here.
 BoolConst falsebool(FALSE);
@@ -792,21 +801,23 @@ void CgenClassTable::code_constants()
 
 CgenClassTable::CgenClassTable(Classes classes, ostream& s) : nds(NULL) , str(s)
 {
-   enterscope();
-   if (cgen_debug) cout << "Building CgenClassTable" << endl;
-   install_basic_classes();
-   install_classes(classes);
-   build_inheritance_tree();
-   order_classes(root());
-   fill_tag_range_map(root());
+  enterscope();
+  if (cgen_debug) cout << "Building CgenClassTable" << endl;
+  install_basic_classes();
+  install_classes(classes);
+  build_inheritance_tree();
+  order_classes(root());
+  fill_tag_range_map(root());
 
-   std::vector<std::pair<Symbol, Symbol> > empty_table;
-   std::map<Symbol, int> empty_pos;
-   std::vector<attr_class*> empty_attrs;
-   process_features(root(), empty_attrs, empty_table, empty_pos);
-
-   code();
-   exitscope();
+  std::vector<std::pair<Symbol, Symbol> > empty_table;
+  std::map<Symbol, int> empty_pos;
+  std::vector<attr_class*> empty_attrs;
+  process_features(root(), empty_attrs, empty_table, empty_pos);
+  for (size_t i = 0; i < ordered_nodes.size(); i++) {
+    fill_method_offset_map(ordered_nodes[i]);
+  }
+  code();
+  exitscope();
 }
 
 void CgenClassTable::install_basic_classes()
@@ -1019,8 +1030,14 @@ void CgenClassTable::code_methods() {
     int temporaries_count = method->expr->calc_temporaries();
     emit_method_entry(temporaries_count, str);
 
+    // get class env & add formals to it
     SymbolTable<Symbol, RegisterOffset> env = methods[i].first->make_environment();
-    // TODO: add the parameter locations to the symbol_location_table (starting at FIRST_ARG_OFFSET from FP)
+    Formals formals = method->formals;
+    for (int j = formals->first(); formals->more(j); j = formals->next(j)) {
+      Symbol name = formals->nth(j)->get_name();
+      RegisterOffset *offset = new RegisterOffset(j + FIRST_ARG_OFFSET, FP);
+      env.addid(name, offset);
+    }
 
     method->expr->code(methods[i].first, env, FIRST_TEMPORARY_OFFSET, str);
     emit_method_exit(method->formals->len(), temporaries_count, str);
@@ -1153,11 +1170,65 @@ void assign_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, 
 }
 
 void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  //TODO
+  int arg_count = this->actual->len();
+  if (arg_count > 0) {
+    emit_addiu(SP, SP, -4 * arg_count, s);
+    for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
+      actual->nth(i)->code(so, env, temp_offset, s);
+      emit_store(ACC, i + 1, SP, s);
+    }
+  }
+  expr->code(so, env, temp_offset, s);
+  emit_bne(ACC, ZERO, label_count, s);
+  // deal with void
+  emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
+  emit_load_imm(T1, 1, s);
+  emit_jal(_dispatch_abort->get_string(), s);
+
+  emit_label_def(label_count++, s);
+  // load dispatch table
+  emit_load(T1, DISPTABLE_OFFSET, ACC, s);
+
+  Symbol dispatch_type = this->type_name; // NOTE: this is the only line that is different than dispatch_class::code(), consider refactor
+  if (dispatch_type == SELF_TYPE) {
+    dispatch_type = so->name;
+  }
+
+  int offset = method_to_offset[std::make_pair(dispatch_type, name)];
+  std::cout << dispatch_type << " " << name << " " << offset << endl;
+  emit_load(T1, offset, T1, s);
+  emit_jalr(T1, s);
 }
 
 void dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  //TODO
+  int arg_count = this->actual->len();
+  if (arg_count > 0) {
+    emit_addiu(SP, SP, -4 * arg_count, s);
+    for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
+      actual->nth(i)->code(so, env, temp_offset, s);
+      emit_store(ACC, i + 1, SP, s);
+    }
+  }
+  expr->code(so, env, temp_offset, s);
+  emit_bne(ACC, ZERO, label_count, s);
+  // deal with void
+  emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
+  emit_load_imm(T1, 1, s);
+  emit_jal(_dispatch_abort->get_string(), s);
+
+  emit_label_def(label_count++, s);
+  // load dispatch table
+  emit_load(T1, DISPTABLE_OFFSET, ACC, s);
+
+  Symbol dispatch_type = expr->get_type();
+  if (dispatch_type == SELF_TYPE) {
+    dispatch_type = so->name;
+  }
+
+  int offset = method_to_offset[std::make_pair(dispatch_type, name)];
+  std::cout << dispatch_type << " " << name << " " << offset << endl;
+  emit_load(T1, offset, T1, s);
+  emit_jalr(T1, s);
 }
 
 void cond_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
@@ -1207,7 +1278,7 @@ void typcase_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env,
   emit_bne(ACC, ZERO, label_count, s);
   // deal with void
   emit_load_string(ACC, stringtable.add_string(so->get_filename()->get_string()), s);
-  emit_load_int(T1, inttable.add_int(expr->get_line_number()), s);
+  emit_load_imm(T1, 1, s);
   emit_jal(_case_abort2->get_string(), s);
 
   for(size_t i = 0; i < ordered_cases.size(); i++) {
@@ -1388,11 +1459,19 @@ int assign_class::calc_temporaries() {
 }
 
 int static_dispatch_class::calc_temporaries() {
-  return 0; // TODO
+  int temps = expr->calc_temporaries();
+  for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
+    temps = std::max(temps, 1 + actual->nth(i)->calc_temporaries());
+  }
+  return temps;
 }
 
 int dispatch_class::calc_temporaries() {
-  return 0; // TODO
+  int temps = expr->calc_temporaries();
+  for (int i = actual->first(); actual->more(i); i = actual->next(i)) {
+    temps = std::max(temps, 1 + actual->nth(i)->calc_temporaries());
+  }
+  return temps;
 }
 
 int cond_class::calc_temporaries() {

@@ -12,7 +12,7 @@ class Bar inherits Foo {
     myFunc(): Int { 0 };
 };
 *)
-
+(*
 class Baz inherits Bar {};
 
 class Foo {
@@ -54,4 +54,10 @@ class Main inherits IO {
       d: D => 2;
     esac
   };
+};
+*)
+
+class Main {
+  x(a: Int, b:Int, c:Int): Int { { a; b; c; } };
+  main():Int { x(1,2,3) };
 };

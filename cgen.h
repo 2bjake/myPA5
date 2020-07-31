@@ -66,7 +66,7 @@ private:
    CgenNodeP parentnd;                        // Parent of class
    List<CgenNode> *children;                  // Children of class
    Basicness basic_status;                    // `Basic' if class is basic
-   std::vector<std::pair<Symbol, Symbol> > dispatch_table;
+   std::vector<std::pair<Symbol, Symbol> > dispatch_table; // <class_name, method_name>
    std::vector<attr_class*> inherited_attrs;
    std::vector<attr_class*> declared_attrs;
    std::map<Symbol, int> attr_pos;
