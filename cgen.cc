@@ -1191,9 +1191,14 @@ void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffse
 
   emit_label_def(not_void_label, s);
   // load dispatch table
-  emit_load(T1, DISPTABLE_OFFSET, ACC, s);
+  if (type_name == Bool) {
+    emit_load_bool(T1, falsebool, s);
+  } else {
+    s << LA << T1 << " "; emit_protobj_ref(type_name, s); s << endl;
+  }
+  emit_load(T1, DISPTABLE_OFFSET, T1, s);
 
-  Symbol dispatch_type = this->type_name; // NOTE: this is the only line that is different than dispatch_class::code(), consider refactor
+  Symbol dispatch_type = expr->get_type();
   if (dispatch_type == SELF_TYPE) {
     dispatch_type = so->name;
   }
