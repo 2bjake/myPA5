@@ -559,6 +559,18 @@ void code_proto_int(ostream &s, int intclasstag)
       << WORD << "0" << endl; // integer value
 }
 
+void code_proto_bool(ostream& s, int boolclasstag)
+{
+  // Add -1 eye catcher
+  s << WORD << "-1" << endl;
+
+  emit_protobj_ref(Bool, s); s << LABEL
+      << WORD << boolclasstag << endl
+      << WORD << (DEFAULT_OBJFIELDS + BOOL_SLOTS) << endl // object size
+      << WORD; emit_disptable_ref(Bool, s); s << endl
+      << WORD << "0" << endl; // false value
+}
+
 //
 // IntTable::code_string_table
 // Generate an Int object definition for every Int constant in the
@@ -674,6 +686,22 @@ void code_class_name_table(ostream &s, std::vector<CgenNodeP> nodes)
     Symbol name = nodes[i]->get_name();
     StringEntryP string_sym = stringtable.lookup_string(name->get_string());
     s << WORD; string_sym->code_ref(s); s << endl;
+  }
+}
+
+void code_class_protObj_table(ostream &s, std::vector<CgenNodeP> nodes) {
+  s << CLASSPROTTAB << LABEL;
+  for (size_t i = 0; i < nodes.size(); i++) {
+    Symbol name = nodes[i]->get_name();
+    s << WORD; emit_protobj_ref(name, s); s << endl;
+  }
+}
+
+void code_class_init_table(ostream &s, std::vector<CgenNodeP> nodes) {
+  s << CLASSINITTAB << LABEL;
+  for (size_t i = 0; i < nodes.size(); i++) {
+    Symbol name = nodes[i]->get_name();
+    s << WORD; emit_init_ref(name, s); s << endl;
   }
 }
 
@@ -1112,6 +1140,7 @@ void CgenClassTable::code()
   code_proto_class(str, IO, ordered_nodes[ioclasstag]->get_all_attrs(), ioclasstag);
   code_proto_string(str, stringclasstag);
   code_proto_int(str, intclasstag);
+  code_proto_bool(str, boolclasstag);
 
   for(size_t i = customclasstag_start; i < ordered_nodes.size(); i++) {
     Symbol name = ordered_nodes[i]->get_name();
@@ -1119,6 +1148,8 @@ void CgenClassTable::code()
   }
 
   code_class_name_table(str, ordered_nodes);
+  code_class_protObj_table(str, ordered_nodes);
+  code_class_init_table(str, ordered_nodes);
 
   code_dispatch_tables();
 
@@ -1191,11 +1222,8 @@ void static_dispatch_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffse
 
   emit_label_def(not_void_label, s);
   // load dispatch table
-  if (type_name == Bool) {
-    emit_load_bool(T1, falsebool, s);
-  } else {
-    s << LA << T1 << " "; emit_protobj_ref(type_name, s); s << endl;
-  }
+  s << LA << T1 << " "; emit_protobj_ref(type_name, s); s << endl;
+
   emit_load(T1, DISPTABLE_OFFSET, T1, s);
 
   Symbol dispatch_type = expr->get_type();
@@ -1438,20 +1466,24 @@ void bool_const_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > e
 }
 
 void new__class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
-  Symbol name;
   if (type_name == SELF_TYPE) {
-    name = so->get_name();
-  } else {
-    name = type_name;
-  }
-
-  if (name == Bool) {
-    emit_load_bool(ACC, falsebool, s);
-  } else {
-    s << LA << ACC << " "; emit_protobj_ref(name, s); s << endl;
+    emit_load(T1, TAG_OFFSET, SELF, s);
+    emit_sll(T1, T1, 2, s);
+    emit_load_address(T2, CLASSPROTTAB, s);
+    emit_addu(T2, T2, T1, s);
+    emit_load(ACC, 0, T2, s);
     s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
+    emit_load(T1, TAG_OFFSET, ACC, s);
+    emit_sll(T1, T1, 2, s);
+    emit_load_address(T2, CLASSINITTAB, s);
+    emit_addu(T2, T2, T1, s);
+    emit_load(T1, 0, T2, s);
+    emit_jalr(T1, s);
+  } else {
+    s << LA << ACC << " "; emit_protobj_ref(type_name, s); s << endl;
+    s << JAL; emit_method_ref(Object, ::copy, s); s << endl;
+    s << JAL; emit_init_ref(type_name, s); s << endl;
   }
-  s << JAL; emit_init_ref(name, s); s << endl;
 }
 
 void isvoid_class::code(CgenNode* so, SymbolTable<Symbol, RegisterOffset > env, int temp_offset, ostream &s) {
